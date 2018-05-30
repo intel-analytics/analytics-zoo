@@ -17,8 +17,7 @@
 import sys
 import six
 
-from bigdl.nn.layer import Model as BModel
-from bigdl.nn.layer import Layer
+from bigdl.nn.layer import Layer, Node, Container, Model
 from bigdl.util.common import callBigDlFunc, to_list
 from zoo.pipeline.api.keras.engine.topology import ZooKerasLayer, KerasNet
 
@@ -27,24 +26,41 @@ if sys.version >= '3':
     unicode = str
 
 
-class GraphNet(BModel):
+class GraphNet(Container):
 
-    def __init__(self, input, output, jvalue=None, bigdl_type="float", **kwargs):
-        super(BModel, self).__init__(jvalue,
-                                     to_list(input),
-                                     to_list(output),
-                                     bigdl_type,
-                                     **kwargs)
+    def __init__(self, inputs, outputs, jvalue=None, bigdl_type="float"):
+        if jvalue:
+            self.value = jvalue
+            self.bigdl_type = bigdl_type
+        else:
+            super(GraphNet, self).__init__(jvalue,
+                                           bigdl_type,
+                                           to_list(inputs),
+                                           to_list(outputs),
+                                           bigdl_type)
 
-    def flattened_layers(self, include_container=False):
+    def flattened_layers(self, names=None, include_container=False):
         jlayers = callBigDlFunc(self.bigdl_type, "getFlattenSubModules", self, include_container)
-        layers = [Layer.of(jlayer) for jlayer in jlayers]
+        all_layers = [Layer.of(jlayer) for jlayer in jlayers]
+        layers = []
+        if names is not None:
+            for layer in all_layers:
+                if layer.name() in names:
+                    layers.append(layer)
+        else:
+            layers = all_layers
         return layers
 
-    @property
-    def layers(self):
+    def layers(self, names=None):
         jlayers = callBigDlFunc(self.bigdl_type, "getSubModules", self)
-        layers = [Layer.of(jlayer) for jlayer in jlayers]
+        all_layers = [Layer.of(jlayer) for jlayer in jlayers]
+        layers = []
+        if names is not None:
+            for layer in all_layers:
+                if layer.name() in names:
+                    layers.append(layer)
+        else:
+            layers = all_layers
         return layers
 
     @staticmethod
@@ -176,7 +192,7 @@ class Net:
                         If set as True, only layers with the same name will be loaded.
         :return: A BigDL model.
         """
-        BModel.load_keras(json_path, hdf5_path, by_name)
+        Model.load_keras(json_path, hdf5_path, by_name)
 
 
 class TFNet(Layer):
@@ -189,3 +205,4 @@ class TFNet(Layer):
                                     path,
                                     input_names,
                                     output_names)
+

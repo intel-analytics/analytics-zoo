@@ -18,15 +18,16 @@ package com.intel.analytics.zoo.pipeline.api.net
 import com.intel.analytics.bigdl.Module
 import com.intel.analytics.bigdl.nn.Graph.ModuleNode
 import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity}
-import com.intel.analytics.bigdl.nn.keras.KerasLayer
+import com.intel.analytics.bigdl.nn.keras.{KerasLayer, KerasModel}
 import com.intel.analytics.bigdl.nn.{Container, DynamicGraph, Graph, StaticGraph}
 import com.intel.analytics.bigdl.serialization.Bigdl.BigDLModule
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.utils.serializer._
+import com.intel.analytics.zoo.common.Utils
 import com.intel.analytics.zoo.pipeline.api.keras.layers.KerasLayerWrapper
 import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.{GraphRef, KerasUtils}
-import com.intel.analytics.zoo.pipeline.api.keras.models.Model
+import com.intel.analytics.zoo.pipeline.api.keras.models.{KerasNet, Model}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -43,8 +44,22 @@ class GraphNet[T: ClassTag](graph: Graph[T])(implicit ev: TensorNumeric[T])
   private val labor = graph
   modules.append(labor)
 
-  def getSubModules(): List[AbstractModule[Activity, Activity, T]] = {
-    this.labor.modules.toList
+  def getSubModules(names: Seq[String] = Seq()): List[AbstractModule[Activity, Activity, T]] = {
+    if (names.nonEmpty) {
+      this.labor.modules.filter(m => names.contains(m.getName())).toList
+    } else {
+      this.labor.modules.toList
+    }
+  }
+
+  def getFlattenSubModules(names: Seq[String] = Seq()):
+      List[AbstractModule[Activity, Activity, T]] = {
+    val all = Utils.getFlattenSubModules(this, includeContainer = true).asScala
+    if (names.nonEmpty) {
+      all.filter(m => names.contains(m.getName())).toList
+    } else {
+      all.toList
+    }
   }
 
   val outputNodes = NetUtils.getGraphOutputs(graph)
@@ -65,7 +80,7 @@ class GraphNet[T: ClassTag](graph: Graph[T])(implicit ev: TensorNumeric[T])
     labor.accGradParameters(input, gradOutput)
   }
 
-  override def node(name: String): ModuleNode[T] = this.graph.node(name)
+  override protected def node(name: String): ModuleNode[T] = this.graph.node(name)
 
   override def newGraph(output: String): GraphNet[T] = {
     newGraph(Seq(output))
@@ -165,14 +180,14 @@ trait NetUtils[T, D <: Module[T] with NetUtils[T, D]] {
   /**
    * Return the nodes in the graph as specified by the names
    */
-  def nodes(names: Seq[String]): Seq[ModuleNode[T]] = {
+  protected def nodes(names: Seq[String]): Seq[ModuleNode[T]] = {
     names.map(node)
   }
 
   /**
    * Return the node in the graph as specified by the name
    */
-  def node(name: String): ModuleNode[T]
+  protected def node(name: String): ModuleNode[T]
 
   /**
    * Freeze the model from the bottom up to the layers

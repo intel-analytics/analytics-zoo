@@ -18,14 +18,71 @@ package com.intel.analytics.zoo.common
 
 import java.io._
 
+import com.intel.analytics.bigdl.nn.Container
+import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity}
+import com.intel.analytics.bigdl.nn.keras.KerasModel
 import com.intel.analytics.bigdl.utils.File
 import com.intel.analytics.zoo.common.NNContext.getClass
+import com.intel.analytics.zoo.pipeline.api.keras.models.KerasNet
+import com.intel.analytics.zoo.pipeline.api.net.GraphNet
 import org.apache.commons.io.filefilter.WildcardFileFilter
 import org.apache.log4j.Logger
+import java.util.{List => JList}
+import scala.collection.JavaConverters._
 
 import scala.collection.mutable.ArrayBuffer
 
 private[zoo] object Utils {
+
+  def getSubModules[T](module: AbstractModule[Activity, Activity, T]):
+  JList[AbstractModule[Activity, Activity, T]] = {
+    module match {
+      case m: KerasNet[T] =>
+        m.getSubModules().asJava
+      case m: GraphNet[T] =>
+        m.getSubModules().asJava
+      case m: Container[Activity, Activity, T] =>
+        m.modules.asJava
+      case _ =>
+        throw new IllegalArgumentException(s"module $module does not have submodules")
+    }
+  }
+
+  def getFlattenSubModules[T](module: AbstractModule[Activity, Activity, T],
+                              includeContainer: Boolean)
+  : JList[AbstractModule[Activity, Activity, T]] = {
+    val result = ArrayBuffer[AbstractModule[Activity, Activity, T]]()
+    doGetFlattenModules(module, includeContainer, result)
+    result.toList.asJava
+  }
+
+  // TODO: refactor Container and KerasLayer to simplify this logic
+  private def hasSubModules[T](module: AbstractModule[Activity, Activity, T]) = {
+    module match {
+      case km: KerasModel[T] => true
+      case c: Container[_, _, _] => true
+      case k: KerasNet[T] => true
+      case _ => false
+    }
+  }
+
+  private def doGetFlattenModules[T](
+      module: AbstractModule[Activity, Activity, T],
+      includeContainer: Boolean,
+      result: ArrayBuffer[AbstractModule[Activity, Activity, T]]): Unit = {
+    getSubModules(module).asScala.foreach {m =>
+      if (hasSubModules(m)) {
+        doGetFlattenModules(m.asInstanceOf[Container[Activity, Activity, T]],
+          includeContainer,
+          result)
+      } else {
+        result.append(m)
+      }
+    }
+    if (includeContainer) {
+      result.append(module)
+    }
+  }
 
   private val logger = Logger.getLogger(getClass)
 

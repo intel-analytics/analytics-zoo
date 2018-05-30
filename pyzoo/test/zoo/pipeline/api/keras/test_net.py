@@ -99,14 +99,28 @@ class TestLayer(ZooTestCase):
         resource_path = os.path.join(os.path.split(__file__)[0], "../../../resources")
         model_path = os.path.join(resource_path, "models/bigdl/bigdl_lenet.model")
         model = Net.load_bigdl(model_path)
-        assert len(model.layers) == 12
+        assert len(model.layers()) == 12
+
+    def test_layers_method_with_name(self):
+        resource_path = os.path.join(os.path.split(__file__)[0], "../../../resources")
+        model_path = os.path.join(resource_path, "models/bigdl/bigdl_lenet.model")
+        model = Net.load_bigdl(model_path)
+        layer = model.layers("pool1")[0]
+        assert layer.name() == "pool1"
 
     def test_flatten_layers_method(self):
         resource_path = os.path.join(os.path.split(__file__)[0], "../../../resources")
         model_path = os.path.join(resource_path, "models/bigdl/bigdl_lenet.model")
         model = Net.load_bigdl(model_path)
 
-        assert len(Sequential().add(model).flattened_layers()) == 12
+        assert len(model.flattened_layers()) == 12
+
+    def test_flatten_layers_method_with_name(self):
+        resource_path = os.path.join(os.path.split(__file__)[0], "../../../resources")
+        model_path = os.path.join(resource_path, "models/bigdl/bigdl_lenet.model")
+        model = Net.load_bigdl(model_path)
+        layer = model.flattened_layers("pool1")[0]
+        assert layer.name() == "pool1"
 
 
 if __name__ == "__main__":

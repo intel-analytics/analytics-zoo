@@ -28,6 +28,7 @@ import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.utils.{Edge, LoggerFilter, Node, Shape}
 import com.intel.analytics.bigdl.utils.serializer.{DeserializeContext, ModuleData, ModuleSerializer, SerializeContext}
 import com.intel.analytics.bigdl.visualization.{TrainSummary, ValidationSummary}
+import com.intel.analytics.zoo.common.Utils
 import com.intel.analytics.zoo.pipeline.api.autograd.{CustomLossWithVariable, Lambda, Variable}
 import com.intel.analytics.zoo.pipeline.api.keras.layers.Input
 import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.{AbstractModuleRef, GraphRef, KerasLayerRef}
@@ -43,10 +44,24 @@ import scala.reflect.ClassTag
 abstract class KerasNet[T: ClassTag](implicit ev: TensorNumeric[T])
   extends KerasLayer[Activity, Activity, T] {
 
-  def getSubModules(): List[AbstractModule[Activity, Activity, T]] = {
+  def getSubModules(names: Seq[String] = Seq()): List[AbstractModule[Activity, Activity, T]] = {
     require(this.labor.isInstanceOf[Container[Activity, Activity, T]],
       s"labor should be a container, but we got: $this")
-    this.labor.asInstanceOf[Container[Activity, Activity, T]].modules.toList
+    val result = this.labor.asInstanceOf[Container[Activity, Activity, T]].modules.toList
+    if (names.nonEmpty) {
+      result.filter(m => names.contains(m.getName()))
+    }
+    result
+  }
+
+  def getFlattenSubModules(names: Seq[String] = Seq()):
+  List[AbstractModule[Activity, Activity, T]] = {
+    val all = Utils.getFlattenSubModules(this, includeContainer = true).asScala
+    if (names.nonEmpty) {
+      all.filter(m => names.contains(m.getName())).toList
+    } else {
+      all.toList
+    }
   }
 
   private var optimMethod: OptimMethod[T] = null
@@ -345,11 +360,11 @@ class Model[T: ClassTag] private (private val _inputs : Seq[ModuleNode[T]],
 
   private val graph = labor.asInstanceOf[Graph[T]]
 
-  override def nodes(names: Seq[String]): Seq[ModuleNode[T]] = {
+  override protected def nodes(names: Seq[String]): Seq[ModuleNode[T]] = {
     names.map(graph.node)
   }
 
-  override def node(name: String): ModuleNode[T] = {
+  override protected def node(name: String): ModuleNode[T] = {
     graph.node(name)
   }
 

@@ -43,6 +43,26 @@ class GraphNetSpec extends FlatSpec with Matchers with BeforeAndAfter {
     model.getSubModules().length should be (12)
   }
 
+  "GraphNet" should "return correct submodules with names" in {
+    val resource = getClass().getClassLoader().getResource("models")
+    val path = resource.getPath + "/" + "bigdl"
+    val model = Net.loadBigDL[Float](s"$path/bigdl_lenet.model")
+
+    val List(pool1, pool3) = model.getSubModules(Seq("pool1", "pool3"))
+    pool1.getName() should be ("pool1")
+    pool3.getName() should be ("pool3")
+  }
+
+  "GraphNet" should "return correct flattenSubmodules with names" in {
+    val resource = getClass().getClassLoader().getResource("models")
+    val path = resource.getPath + "/" + "bigdl"
+    val model = Net.loadBigDL[Float](s"$path/bigdl_lenet.model")
+
+    val List(pool1, pool3) = model.getFlattenSubModules(Seq("pool1", "pool3"))
+    pool1.getName() should be ("pool1")
+    pool3.getName() should be ("pool3")
+  }
+
 }
 
 class GraphNetSerialTest extends ModuleSerializationTest {
