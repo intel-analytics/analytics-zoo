@@ -65,7 +65,7 @@ object RoiImageSeqGenerator {
         Imdb.getImdb(param.imageSet.get, param.folder).getRoidb(false)
       }
 
-      val total = roidbs.array
+      val total = roidbs.array.length
       val iter = Imdb.data(roidbs.array)
 
       (0 until param.parallel).map(tid => {

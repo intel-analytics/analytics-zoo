@@ -23,14 +23,14 @@ import com.intel.analytics.bigdl.transform.vision.image.ImageFeature
 import com.intel.analytics.bigdl.transform.vision.image.util.BboxUtil
 
 
-
 /**
- * A batch of data feed into the model. The first size is batchsize
- * @param input
- * @param target
- */
+  * A batch of data feed into the model. The first size is batchsize
+  *
+  * @param input
+  * @param target
+  */
 class SSDMiniBatch(val input: Tensor[Float], val target: Tensor[Float],
-  val imInfo: Tensor[Float] = null)
+                   val imInfo: Tensor[Float] = null)
   extends MiniBatch[Float] {
 
   private val targetIndices = if (target != null) BboxUtil.getGroundTruthIndices(target) else null

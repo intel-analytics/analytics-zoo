@@ -34,11 +34,20 @@ class Coco(val imageSet: String, devkitPath: String) extends Imdb {
   override def getRoidb(readImage: Boolean = true): LocalImageFrame = {
     val imageSetFile = Paths.get(devkitPath, "ImageSets", s"$imageSet.txt").toFile
     assert(imageSetFile.exists(), "Path does not exist " + imageSetFile.getAbsolutePath)
+
+    var imageSet_new = imageSet
+    if (imageSet == "val2014" || imageSet == "minival2014" || imageSet == "valminusminival2014"){
+      imageSet_new = "val2014"
+    } else if (imageSet == "test-dev2015"){
+      imageSet_new = "test2015"
+    }
     val array = Source.fromFile(imageSetFile).getLines()
       .map(line => line.trim.split("\\s")).map(x => {
-      val imagePath = devkitPath + "/" + x(0)
+      val imagePath = devkitPath + "/images/" + imageSet_new + "/" + x(0) + ".jpg"
+      val annoPath = devkitPath + "/Annotations/" + imageSet + "/" + x(0) + ".json"
+
       val image = if (readImage) loadImage(imagePath) else null
-      ImageFeature(image, Coco.loadAnnotation(devkitPath + "/" + x(1)), imagePath)
+      ImageFeature(image, Coco.loadAnnotation(annoPath), imagePath)
     }).toArray
 
     ImageFrame.array(array)
