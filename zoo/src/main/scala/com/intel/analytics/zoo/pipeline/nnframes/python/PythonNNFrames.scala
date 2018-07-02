@@ -76,6 +76,10 @@ class PythonNNFrames[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonB
     NNClassifierModel(model).setSamplePreprocessing(samplePreprocessing)
   }
 
+  def createNNImageReader(): NNImageReader = {
+    new NNImageReader()
+  }
+
   def setOptimMethod(
       estimator: NNEstimator[T],
       optimMethod: OptimMethod[T]): NNEstimator[T] = {

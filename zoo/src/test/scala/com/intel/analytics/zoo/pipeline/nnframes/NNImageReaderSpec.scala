@@ -76,6 +76,28 @@ class NNImageReaderSpec extends FlatSpec with Matchers with BeforeAndAfter {
     assert (expectedRows.toSet == actualRows.toSet)
   }
 
+  "NNImageReader" should "transform for imageNet" in {
+    val imageDirectory = imageNetResource + "n02110063/"
+    val pathDF = sQLContext.createDataFrame(Seq(
+      (1, s"${imageDirectory}n02110063_8651.JPEG"),
+      (2, s"${imageDirectory}n02110063_11239.JPEG"),
+      (3, s"${imageDirectory}n02110063_15462.JPEG")
+    )).toDF("id", "path")
+    val imageDF = new NNImageReader().setInputCol("path").setOutputCol("image")
+      .transform(pathDF)
+    imageDF.show()
+    assert(imageDF.count() == 3)
+    val expectedRows = Seq(
+      (imageDirectory + "n02110063_8651.JPEG", 99, 129, 3, CvType.CV_8UC3),
+      (imageDirectory + "n02110063_11239.JPEG", 333, 500, 3, CvType.CV_8UC3),
+      (imageDirectory + "n02110063_15462.JPEG", 332, 500, 3, CvType.CV_8UC3)
+    )
+    val actualRows = imageDF.select("image").rdd.collect().map(r => r.getAs[Row](0)).map { r =>
+      (r.getString(0), r.getInt(1), r.getInt(2), r.getInt(3), r.getInt(4))
+    }
+    assert (expectedRows.toSet == actualRows.toSet)
+  }
+
   "NNImageReader" should "has correct result for imageNet with channel 1 and 4" in {
     val imageDirectory = imageNetResource + "n99999999/"
     val imageDF = NNImageReader.readImages(imageDirectory, sc)

@@ -18,8 +18,14 @@ package com.intel.analytics.zoo.pipeline.nnframes
 
 import com.intel.analytics.bigdl.tensor.{Storage, Tensor}
 import com.intel.analytics.bigdl.transform.vision.image.{BytesToMat, ImageFeature, ImageFrame}
-import com.intel.analytics.zoo.feature.image.ImageSet
+import com.intel.analytics.zoo.feature.image.{ImageBytesToMat, ImageSet}
+import org.apache.commons.io.{FileUtils, IOUtils}
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkContext
+import org.apache.spark.ml.{DLTransformerBase, Transformer, UnaryTransformer}
+import org.apache.spark.ml.adapter.{HasInputCol, HasOutputCol}
+import org.apache.spark.ml.util.{Identifiable, MLWritable}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -170,6 +176,41 @@ object NNImageReader {
       Row(NNImageSchema.imf2Row(imf))
     }
     SQLContext.getOrCreate(sc).createDataFrame(rowRDD, imageColumnSchema)
+  }
+
+}
+
+/**
+ * A Spark Transformer that read images from path specified in the input column.
+ * Expected input column should be String type, and each record represents the path to the image.
+ *
+ */
+class NNImageReader (override val uid: String) extends UnaryTransformer[String, Row, NNImageReader] {
+
+  def this() = this(Identifiable.randomUID("NNImageReader"))
+
+  override protected def createTransformFunc: String => Row = (path: String) => {
+    try {
+      val src: Path = new Path(path)
+      val fs = src.getFileSystem(new Configuration())
+      val is = fs.open(src)
+      val fileBytes = IOUtils.toByteArray(is)
+      var imf = ImageFeature(fileBytes, uri = path)
+      imf = ImageBytesToMat().apply(Iterator(imf)).next()
+      NNImageSchema.imf2Row(imf)
+    }
+    catch {
+      case e: Exception =>
+        println("ERROR: error when reading " + path)
+        println(e)
+        null
+    }
+  }
+
+  override protected def outputDataType: DataType = NNImageSchema.byteSchema
+
+  override protected def validateInputType(inputType: DataType): Unit = {
+    require(inputType == DataTypes.StringType, s"Bad input type: $inputType. Requires String.")
   }
 
 }
