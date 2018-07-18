@@ -23,12 +23,14 @@ from bigdl.optim.optimizer import *
 from numpy.testing import assert_allclose
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import MinMaxScaler
+from pyspark.sql.functions import lit
 from pyspark.sql.types import *
-
 from zoo.common.nncontext import *
-from zoo.pipeline.nnframes import *
 from zoo.feature.common import *
 from zoo.feature.image import *
+from zoo.pipeline.api.keras.layers import *
+from zoo.pipeline.api.keras.models import Sequential as kseq
+from zoo.pipeline.nnframes import *
 
 
 class TestNNClassifer():
@@ -72,6 +74,14 @@ class TestNNClassifer():
         df = self.sqlContext.createDataFrame(data, schema)
         return df
 
+    def get_CNN_Model(self):
+        model = kseq()
+        model.add(Convolution2D(1, 5, 5, input_shape=(3, 224, 224)))
+        model.add(Reshape((1*220*220, )))
+        model.add(Dense(20, activation="softmax"))
+        model.compile(optimizer="sgd", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+        return model
+
     def test_nnEstimator_construct_with_differnt_params(self):
         linear_model = Sequential().add(Linear(2, 2))
         mse_criterion = MSECriterion()
@@ -103,7 +113,7 @@ class TestNNClassifer():
             res = e.transform(df)
             assert type(res).__name__ == 'DataFrame'
 
-    def test_nnClassiferModel_construct_with_differnt_params(self):
+    def test_nnClassifierModel_construct_with_different_params(self):
         linear_model = Sequential().add(Linear(2, 2))
         df = self.get_classifier_df()
         for e in [NNClassifierModel(linear_model),
@@ -363,6 +373,64 @@ class TestNNClassifer():
             row_label = data[i][1]
             row_prediction = data[i][2]
             assert row_label == row_prediction
+
+    def test_nnclassifier_fit_with_image(self):
+        resource_path = os.path.join(os.path.split(__file__)[0], "../../resources")
+        image_path = os.path.join(resource_path, "imagenet/n02110063")
+        image_frame = NNImageReader.readImages(image_path, self.sc).withColumn("label", lit(1.0))
+        transformer = ChainedPreprocessing(
+            [RowToImageFeature(), ImageResize(256, 256), ImageCenterCrop(224, 224),
+             ImageChannelNormalize(123.0, 117.0, 104.0), ImageMatToTensor(),
+             ImageFeatureToTensor()])
+
+        model = self.get_CNN_Model()
+        criterion = ClassNLLCriterion()
+        classifier = NNClassifier(model, criterion, transformer) \
+            .setLearningRate(0.2).setMaxEpoch(1) \
+            .setFeaturesCol("image")
+
+        nnClassifierModel = classifier.fit(image_frame)
+        assert(isinstance(nnClassifierModel, NNClassifierModel))
+        res = nnClassifierModel.transform(image_frame)
+        assert type(res).__name__ == 'DataFrame'
+
+    def test_nnclassifier_handle_invalid_data(self):
+        resource_path = os.path.join(os.path.split(__file__)[0], "../../resources")
+        image_path = os.path.join(resource_path, "faulty")
+        image_frame = NNImageReader.readImages(image_path, self.sc).withColumn("label", lit(1.0))
+        transformer = ChainedPreprocessing(
+            [RowToImageFeature(), ImageResize(256, 256), ImageCenterCrop(224, 224),
+             ImageChannelNormalize(123.0, 117.0, 104.0), ImageMatToTensor(),
+             ImageFeatureToTensor()])
+
+        model = self.get_CNN_Model()
+        criterion = ClassNLLCriterion()
+        classifier = NNClassifier(model, criterion, transformer) \
+            .setLearningRate(0.2).setMaxEpoch(1) \
+            .setFeaturesCol("image").setHandleInvalid("drop")
+
+        nnClassifierModel = classifier.fit(image_frame)
+        assert(isinstance(nnClassifierModel, NNClassifierModel))
+        res = nnClassifierModel.transform(image_frame)
+        assert res.count() == 1
+        assert type(res).__name__ == 'DataFrame'
+
+    def test_nnclassifierModel_handle_invalid_data(self):
+        resource_path = os.path.join(os.path.split(__file__)[0], "../../resources")
+        image_path = os.path.join(resource_path, "faulty")
+        image_frame = NNImageReader.readImages(image_path, self.sc).withColumn("label", lit(1.0))
+        transformer = ChainedPreprocessing(
+            [RowToImageFeature(), ImageResize(256, 256), ImageCenterCrop(224, 224),
+             ImageChannelNormalize(123.0, 117.0, 104.0), ImageMatToTensor(),
+             ImageFeatureToTensor()])
+
+        model = self.get_CNN_Model()
+        classifier_model = NNClassifierModel(model, transformer) \
+            .setFeaturesCol("image").setHandleInvalid("drop")
+
+        res = classifier_model.transform(image_frame)
+        assert type(res).__name__ == 'DataFrame'
+        assert res.count() == 1
 
     def test_nnclassifierModel_set_Preprocessing(self):
         model = Sequential().add(Linear(2, 2))

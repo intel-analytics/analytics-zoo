@@ -35,15 +35,23 @@ class FeatureLabelPreprocessing[F, L, T: ClassTag](
     labelStep: Preprocessing[L, Tensor[T]])(implicit ev: TensorNumeric[T])
   extends Preprocessing[(F, Option[L]), Sample[T]] {
 
+  @transient lazy val log = org.apache.log4j.LogManager.getLogger("FeatureLabelPreprocessing")
+
   override def apply(prev: Iterator[(F, Option[L])]): Iterator[Sample[T]] = {
     prev.map { case (feature, label ) =>
-      val featureTensor = featureStep(Iterator(feature)).next()
-      label match {
-        case Some(l) =>
-          val labelTensor = labelStep(Iterator(l)).next()
-          Sample[T](featureTensor, labelTensor)
-        case None =>
-          Sample[T](featureTensor)
+      try {
+        val featureTensor = featureStep(Iterator(feature)).next()
+        label match {
+          case Some(l) =>
+            val labelTensor = labelStep(Iterator(l)).next()
+            Sample[T](featureTensor, labelTensor)
+          case None =>
+            Sample[T](featureTensor)
+        }
+      } catch {
+        case e: Exception =>
+          log.warn(e.getMessage)
+          null
       }
     }
   }

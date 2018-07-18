@@ -36,6 +36,7 @@ import org.apache.spark.ml.feature.MinMaxScaler
 import org.apache.spark.ml.param.{ParamMap, Params}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.functions._
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
 import scala.reflect.io.Path
@@ -353,6 +354,46 @@ class NNEstimatorSpec extends FlatSpec with Matchers with BeforeAndAfter {
     intercept[Exception] {
       estimator.fit(df)
     }
+  }
+
+  "NNEstimator" should "supports handle invalid data" in {
+    val faultyResource = getClass.getClassLoader.getResource("faulty/")
+    val imageDF = NNImageReader.readImages(faultyResource.getFile, sc).withColumn("label", lit(1.0))
+    assert(imageDF.count() == 2)
+    val transformer = RowToImageFeature() -> ImageResize(256, 256) -> ImageCenterCrop(224, 224) ->
+      ImageChannelNormalize(123, 117, 104) -> ImageMatToTensor() -> ImageFeatureToTensor()
+    val estimator = NNEstimator(Inception_v1(1000), ClassNLLCriterion(), transformer,
+      ScalarToTensor())
+      .setMaxEpoch(1)
+      .setFeaturesCol("image")
+    // by default, report error for invalid data.
+    intercept[Exception] {
+      estimator.fit(imageDF)
+    }
+    // fit and transform with invalid records
+    val nnModel = estimator
+      .setHandleInvalid("drop")
+      .fit(imageDF)
+    assert(nnModel.transform(imageDF).count() == 1)
+  }
+
+  "NNModel" should "supports handle invalid data" in {
+    val faultyResource = getClass.getClassLoader.getResource("faulty/")
+    val imageDF = NNImageReader.readImages(faultyResource.getFile, sc).withColumn("label", lit(1.0))
+    assert(imageDF.count() == 2)
+    val transformer = RowToImageFeature() -> ImageResize(256, 256) -> ImageCenterCrop(224, 224) ->
+      ImageChannelNormalize(123, 117, 104) -> ImageMatToTensor() -> ImageFeatureToTensor()
+    val model = NNModel(Inception_v1(1000), transformer)
+      .setFeaturesCol("image")
+    // by default, report error for invalid data.
+    intercept[Exception] {
+      model.transform(imageDF).show()
+    }
+    // fit and transform with invalid records
+    val result = model
+      .setHandleInvalid("drop")
+      .transform(imageDF)
+    assert(result.count() == 1)
   }
 
   "An NNEstimator" should "works in ML pipeline" in {

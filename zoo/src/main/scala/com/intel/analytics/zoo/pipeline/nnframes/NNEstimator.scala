@@ -125,6 +125,23 @@ private[nnframes] trait NNParams[@specialized(Float, Double) T] extends HasFeatu
   def getSamplePreprocessing: Preprocessing[Any, Sample[T]] = $(samplePreprocessing)
 
   setDefault(batchSize -> 1)
+
+  /**
+   * Param for how to handle invalid data during fit() and transform().
+   * Options are:
+   * 'drop': invalid data are ignored during training (fit).
+   *         During prediction (transform), rows containing invalid data will be dropped.
+   * 'error': throw an error whenever an invalid data is met.
+   * Default: "error"
+   * @group param
+   */
+  val handleInvalid: Param[String] = new Param[String](this, "handleInvalid",
+    "handleInvalid", ParamValidators.inArray(NNEstimator.supportedHandleInvalids))
+
+  setDefault(handleInvalid, NNEstimator.ERROR_INVALID)
+
+  def getHandleInvalid: String = $(handleInvalid)
+
 }
 
 /**
@@ -198,6 +215,10 @@ class NNEstimator[T: ClassTag] private[zoo] (
   def clearGradientClipping(): this.type = {
     clear(l2GradientClippingParams)
     clear(constantGradientClippingParams)
+  }
+
+  def setHandleInvalid(value: String): this.type = {
+    set(handleInvalid, value)
   }
 
   @transient private var trainSummary: Option[TrainSummary] = None
@@ -322,7 +343,13 @@ class NNEstimator[T: ClassTag] private[zoo] (
       DataSet.rdd(featureAndLabel).transform(sp)
     }
 
-    initialDataSet.transform(SampleToMiniBatch[T](batchSize))
+    $(handleInvalid) match {
+      case NNEstimator.ERROR_INVALID =>
+        initialDataSet.transform(SampleToMiniBatch[T](batchSize))
+      case NNEstimator.DROP_INVALID =>
+        // assume the preprocessing return null for invalid data
+        initialDataSet.transform(FilterNull[Sample[T], T]() -> SampleToMiniBatch[T](batchSize))
+    }
   }
 
   protected override def internalFit(dataFrame: DataFrame): NNModel[T] = {
@@ -469,6 +496,10 @@ object NNEstimator {
     new NNEstimator(model, criterion)
       .setSamplePreprocessing(TupleToFeatureAdapter(featurePreprocessing))
   }
+
+  private[nnframes] val DROP_INVALID: String = "drop"
+  private[nnframes] val ERROR_INVALID: String = "error"
+  private[nnframes] val supportedHandleInvalids: Array[String] = Array(DROP_INVALID, ERROR_INVALID)
 }
 
 /**
@@ -505,6 +536,10 @@ class NNModel[T: ClassTag] private[zoo] (
   def setSamplePreprocessing[FF <: Any](value: Preprocessing[FF, Sample[T]]): this.type =
     set(samplePreprocessing, value.asInstanceOf[Preprocessing[Any, Sample[T]]])
 
+  def setHandleInvalid(value: String): this.type = {
+    set(handleInvalid, value)
+  }
+
   /**
    * Perform a prediction on featureCol, and write result to the predictionCol.
    */
@@ -525,9 +560,27 @@ class NNModel[T: ClassTag] private[zoo] (
       val toBatch = toBatchBC.value.cloneTransformer()
 
       rowIter.grouped(localBatchSize).flatMap { rowBatch =>
-        val featureSeq = rowBatch.map(r => r.get(featureColIndex))
-        val samples = featureSteps(featureSeq.iterator)
-        val predictions = toBatch(samples).flatMap { batch =>
+        val samples = rowBatch.map { row =>
+          val f = row.get(featureColIndex)
+          val sample = try {
+            featureSteps(Iterator(f)).next()
+          } catch {
+            case e: Exception =>
+              $(handleInvalid) match {
+                case NNEstimator.ERROR_INVALID =>
+                  throw e
+                case NNEstimator.DROP_INVALID =>
+                  logError(e.getMessage)
+                  null
+              }
+            case x =>
+              println(x)
+              null
+          }
+          (row, sample)
+        }.filter(_._2 != null)
+
+        val predictions = toBatch(samples.map(_._2).iterator).flatMap { batch =>
           val batchResult = localModel.forward(batch.getInput()).toTensor.squeeze()
           if (batchResult.size().length == 2) {
             batchResult.split(1).map(outputToPrediction)
@@ -538,7 +591,8 @@ class NNModel[T: ClassTag] private[zoo] (
               "unexpected batchResult dimension: " + batchResult.size().mkString(", "))
           }
         }
-        rowBatch.toIterator.zip(predictions).map { case (row, predict) =>
+
+        samples.map(_._1).iterator.zip(predictions).map { case (row, predict) =>
           Row.fromSeq(row.toSeq ++ Seq(predict))
         }
       }
