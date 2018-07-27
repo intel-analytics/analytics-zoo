@@ -61,7 +61,8 @@ if __name__ == "__main__":
 
     lrModel = Sequential().add(Linear(1000, 2)).add(LogSoftMax())
     classifier = NNClassifier(lrModel, ClassNLLCriterion(), SeqToTensor([1000])) \
-        .setLearningRate(0.003).setBatchSize(40).setMaxEpoch(20).setFeaturesCol("embedding")
+        .setLearningRate(0.003).setBatchSize(40).setMaxEpoch(20).setFeaturesCol("embedding") \
+        .setCachingSample(False)
 
     pipeline = Pipeline(stages=[preTrainedNNModel, classifier])
 
