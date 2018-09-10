@@ -29,8 +29,8 @@ import scala.reflect.ClassTag
 /**
  * predictor configure
  *
- * @param preProcessor preprocessor of ImageFrame before model inference
- * @param postProcessor postprocessor of ImageFrame after model inference
+ * @param preProcessor preprocessor of ImageSet before model inference
+ * @param postProcessor postprocessor of ImageSet after model inference
  * @param batchPerPartition batch size per partition
  * @param labelMap label mapping
  * @param featurePaddingParam featurePaddingParam if the inputs have variant size

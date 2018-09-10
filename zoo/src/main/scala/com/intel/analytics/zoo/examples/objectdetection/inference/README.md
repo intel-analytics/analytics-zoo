@@ -28,7 +28,7 @@ spark-submit \
 --total-executor-cores 4 \
 --driver-memory 200g \
 --executor-memory 200g \
---class com.intel.analytics.zoo.examples.objectdetection.Predict \
+--class com.intel.analytics.zoo.examples.objectdetection.inference.Predict \
 ${ANALYTICS_ZOO_HOME}/lib/analytics-zoo-bigdl_BIGDL_VERSION-spark_SPARK_VERSION-ZOO_VERSION-jar-with-dependencies.jar --image $imagePath --output $outputPath --modelPath $modelPath --partition 4
 ```
 

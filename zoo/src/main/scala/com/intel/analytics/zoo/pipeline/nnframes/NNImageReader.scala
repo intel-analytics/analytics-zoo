@@ -17,7 +17,7 @@
 package com.intel.analytics.zoo.pipeline.nnframes
 
 import com.intel.analytics.bigdl.tensor.{Storage, Tensor}
-import com.intel.analytics.bigdl.transform.vision.image.{BytesToMat, ImageFeature, ImageFrame}
+import com.intel.analytics.bigdl.transform.vision.image.{BytesToMat, ImageFeature}
 import com.intel.analytics.zoo.feature.image.ImageSet
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.functions._

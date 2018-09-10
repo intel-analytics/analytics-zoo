@@ -21,7 +21,7 @@ from bigdl.transform.vision.image import FeatureTransformer
 
 from zoo.models.image.common.image_model import ImageModel
 from zoo.feature.image.imageset import *
-
+from zoo.feature.image.imagePreprocessing import *
 
 if sys.version >= '3':
     long = int
@@ -68,7 +68,7 @@ class ObjectDetector(ImageModel):
         return model
 
 
-class ImInfo(FeatureTransformer):
+class ImInfo(ImagePreprocessing):
     """
     Generate imInfo
     imInfo is a tensor that contains height, width, scaleInHeight, scaleInWidth
@@ -76,8 +76,15 @@ class ImInfo(FeatureTransformer):
     def __init__(self, bigdl_type="float"):
         super(ImInfo, self).__init__(bigdl_type)
 
+class DummyGT(ImagePreprocessing):
+    """
+    
+    """
+    def __init__(self, bigdl_type="float"):
+        super(DummyGT, self).__init__(bigdl_type)
 
-class DecodeOutput(FeatureTransformer):
+
+class DecodeOutput(ImagePreprocessing):
     """
     Decode the detection output
     The output of the model prediction is a 1-dim tensor
@@ -96,7 +103,7 @@ class DecodeOutput(FeatureTransformer):
         super(DecodeOutput, self).__init__(bigdl_type)
 
 
-class ScaleDetection(FeatureTransformer):
+class ScaleDetection(ImagePreprocessing):
     """
     If the detection is normalized, for example, ssd detected bounding box is in [0, 1],
     need to scale the bbox according to the original image size.
@@ -107,7 +114,7 @@ class ScaleDetection(FeatureTransformer):
         super(ScaleDetection, self).__init__(bigdl_type)
 
 
-class Visualizer(FeatureTransformer):
+class Visualizer(ImagePreprocessing):
     """
     Visualizer is a transformer to visualize the detection results
     (tensors that encodes label, score, boundingbox)

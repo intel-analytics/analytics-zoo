@@ -47,7 +47,7 @@ class ImageConfigure(JavaValue):
                     "the pre_processor should be subclass of Preprocessing"
             if post_processor:
                 assert issubclass(post_processor.__class__, Preprocessing), \
-                    "the pre_processor should be subclass of Preprocessing"
+                    "the post_processor should be subclass of Preprocessing"
             self.value = callBigDlFunc(
                 bigdl_type, JavaValue.jvm_class_constructor(self),
                 pre_processor,

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.intel.analytics.zoo.examples.objectdetection
+package com.intel.analytics.zoo.examples.objectdetection.inference
 
 import java.nio.file.Paths
 
@@ -61,7 +61,7 @@ object Predict {
   def main(args: Array[String]): Unit = {
     parser.parse(args, PredictParam()).foreach { params =>
       val conf = new SparkConf()
-        .setAppName("Object Detection Example")
+        .setAppName("Object Detection Inference Example")
       val sc = NNContext.initNNContext(conf)
 
       val model = ObjectDetector.loadModel[Float](params.modelPath)

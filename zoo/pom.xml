@@ -215,6 +215,12 @@
             <version>${scala.version}</version>
             <scope>${spark-scope}</scope>
         </dependency>
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-xml</artifactId>
+            <version>2.11.0-M4</version>
+            <scope>${spark-scope}</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>

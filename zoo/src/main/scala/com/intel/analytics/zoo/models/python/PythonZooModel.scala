@@ -115,7 +115,10 @@ class PythonZooModel[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonB
 
   def createVisualizer(labelMap: JMap[Int, String], thresh: Float = 0.3f,
                        encoding: String): Preprocessing[ImageFeature, ImageFeature] = {
-    Visualizer(labelMap.asScala.toMap, thresh, encoding, Visualizer.visualized) ->
+    Visualizer(labelMap.asScala.toMap,
+      thresh,
+      encoding,
+      Visualizer.visualized) ->
       ImageBytesToMat(Visualizer.visualized) -> ImageMatToFloats(shareBuffer = false)
   }
 
@@ -125,6 +128,10 @@ class PythonZooModel[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonB
 
   def createImInfo(): ImInfo = {
     ImInfo()
+  }
+
+  def createDummyGT(): DummyGT = {
+    DummyGT()
   }
 
   def createDecodeOutput(): DecodeOutput = {
