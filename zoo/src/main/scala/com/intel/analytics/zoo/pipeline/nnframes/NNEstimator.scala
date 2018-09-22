@@ -41,14 +41,14 @@ import org.json4s.{DefaultFormats, JObject}
 
 import scala.reflect.ClassTag
 
-private[nnframes] trait HasBatchSize extends Params {
+private[zoo] trait HasBatchSize extends Params {
 
   final val batchSize: IntParam = new IntParam(this, "batchSize", "batchSize")
 
   def getBatchSize: Int = $(batchSize)
 }
 
-private[nnframes] trait TrainingParams[@specialized(Float, Double) T] extends Params {
+private[zoo] trait TrainingParams[@specialized(Float, Double) T] extends Params {
 
   /**
    * When to stop the training, passed in a [[Trigger]]. E.g. Trigger.maxIterations
@@ -131,14 +131,14 @@ private[nnframes] trait TrainingParams[@specialized(Float, Double) T] extends Pa
 /**
  * Common trait for NNEstimator and NNModel
  */
-private[nnframes] trait NNParams[@specialized(Float, Double) T] extends HasFeaturesCol
+private[zoo] trait NNParams[@specialized(Float, Double) T] extends HasFeaturesCol
   with HasPredictionCol with HasBatchSize {
 
   final val samplePreprocessing = new Param[Preprocessing[Any, Sample[T]]](this,
     "samplePreprocessing", "samplePreprocessing ")
 
   def getSamplePreprocessing: Preprocessing[Any, Sample[T]] = $(samplePreprocessing)
-
+Zo
   setDefault(batchSize -> 1)
 }
 

@@ -93,7 +93,7 @@ def setup_package():
         license='Apache License, Version 2.0',
         url='https://github.com/intel-analytics/analytics-zoo',
         packages=packages,
-        install_requires=['pyspark>=2.2,<2.3', 'bigdl==0.6.0'],
+        install_requires=['pyspark>=2.2,<2.3', 'bigdl==0.6.0', 'sagemaker-containers==2.0.2', 'sagemaker_pyspark==1.1.2'],
         dependency_links=['https://d3kbcqa49mib13.cloudfront.net/spark-2.0.0-bin-hadoop2.7.tgz'],
         include_package_data=True,
         package_data={"zoo.share": ['lib/analytics-zoo*with-dependencies.jar', 'conf/*', 'bin/*',
