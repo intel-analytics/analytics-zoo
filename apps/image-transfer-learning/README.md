@@ -1,5 +1,7 @@
 # Transfer Learning
-In this notebook, we will use a pre-trained Inception_V1 model. But we will operate on the pre-trained model to freeze first few layers, replace the classifier on the top, then fine tune the whole model. And we use the fine-tuned model to solve the dogs-vs-cats classification problem,
+In these notebooks, we will use a pre-trained Inception_V1 model. But we will operate on the
+pre-trained model to freeze first few layers, replace the classifier on the top, then fine tune
+the whole model. And we use the fine-tuned model to solve the dogs-vs-cats classification problem.
 
 ## Environment
 * Python 2.7
