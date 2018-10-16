@@ -59,7 +59,7 @@ RUN apt-get install -y --force-yes software-properties-common python-software-pr
     pip2 install --upgrade setuptools && \
     pip2 install numpy scipy && \
     pip2 install --no-binary pandas -I pandas && \
-    pip2 install scikit-learn matplotlib seaborn jupyter wordcloud moviepy requests opencv-python tensorflow && \
+    pip2 install scikit-learn matplotlib seaborn jupyter wordcloud moviepy requests opencv-python tensorflow h5py && \
     python2 -m pip install ipykernel && \
     python2 -m ipykernel install --user
 #spark
