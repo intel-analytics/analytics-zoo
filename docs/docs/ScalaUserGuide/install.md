@@ -22,30 +22,6 @@ libraryDependencies += "com.intel.analytics.zoo" % "analytics-zoo-[SPARK_1.6|SPA
 You can find the optional `${ANALYTICS_ZOO_VERSION}` from the [Release Page](../release-download.md).
 
 ---
-## **Link with a development version**
-
-Currently, Analytics Zoo development version is hosted on [SonaType](https://oss.sonatype.org/content/groups/public/com/intel/analytics/zoo/).
-
-To link your application with the latest Analytics Zoo development version, you should add some dependencies like [Linking with Analytics Zoo releases](#link-with-a-release-version), but set `${ANALYTICS_ZOO_VERSION}` to `0.2.0`, and add below repository to your pom.xml.
-
-```xml
-<repository>
-    <id>sonatype</id>
-    <name>sonatype repository</name>
-    <url>https://oss.sonatype.org/content/groups/public/</url>
-    <releases>
-        <enabled>true</enabled>
-    </releases>
-    <snapshots>
-        <enabled>true</enabled>
-    </snapshots>
-</repository>
-```
-
-SBT developers can use
-```sbt
-resolvers += "ossrh repository" at "https://oss.sonatype.org/content/repositories/snapshots/"
-```
 
 ## **Download Analytics Zoo Source**
 
