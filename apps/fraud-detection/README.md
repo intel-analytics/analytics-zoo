@@ -30,6 +30,7 @@ jupyter toree install --spark_opts='--master=local[*]' --user --spark_home=$SPAR
 https://github.com/intel-analytics/analytics-zoo/tree/legacy/pipeline/fraudDetection. We provided a pre-built jar file in this folder. Feel free to go to the source folder and run "mvn clean package" to build from source.
 
 
-4. Run the `$ANALYTICS_ZOO_HOME/apps/fraud-detection/run.sh` to start the jupyter notebook. Change parameter settings as you need, ie `MASTER = local[physcial_core_number]`.
+4. Run the `$ANALYTICS_ZOO_HOME/scripts/jupyter-with-zoo-scala.sh '--master=local[*]' ',./fraud-1.0.1-SNAPSHOT.jar' '--driver-memory 10g --executor-memory 10g'` to start the jupyter notebook.
+Change parameter settings as you need, ie `MASTER = local[physcial_core_number]`.
 Recommended driver memory and executor memory is 10g. 
 
