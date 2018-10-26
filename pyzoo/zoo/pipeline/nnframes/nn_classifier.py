@@ -31,7 +31,7 @@ class HasBatchSize(Params):
     """
 
     # a placeholder to make it appear in the generated doc
-    batchSize = Param(Params._dummy(), "batchSize", "batchSize (>= 0).")
+    batchSize = Param(Params._dummy(), "batchSize", "batchSize (> 0).")
 
     def __init__(self):
         super(HasBatchSize, self).__init__()
@@ -41,7 +41,7 @@ class HasBatchSize(Params):
 
     def setBatchSize(self, val):
         """
-        Sets the value of :py:attr:`batchSize`.
+        Sets the value of :py:attr:`batchSize`. Default 1.
         """
         self._paramMap[self.batchSize] = val
         return self
@@ -119,9 +119,9 @@ class HasThreshold(Params):
 
     def setThreshold(self, val):
         """
-        Sets the value of :py:attr:`threshold`.
+        Sets the value of :py:attr:`threshold`. Default 0.5
         """
-        self._paramMap[self.threshold] = val
+        self._paramMap[self.threshold] = float(val)
         return self
 
     def getThreshold(self):
@@ -135,8 +135,8 @@ class NNEstimator(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, 
                   HasOptimMethod, HasSamplePreprocessing, JavaValue):
     """
     NNEstimator extends org.apache.spark.ml.Estimator and supports training a BigDL model with
-    Spark DataFrame data. It can be integrated into a standard Spark ML Pipeline to enable
-    users for combined usage with Spark MLlib.
+    Spark DataFrame data. It can be integrated into a Spark ML Pipeline for combined usage
+    with Spark MLlib.
 
     NNEstimator supports different feature and label data type through operation defined in
     Preprocessing. We provide pre-defined Preprocessing for popular data types like Array
@@ -227,7 +227,7 @@ class NNEstimator(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, 
 
     def setMaxEpoch(self, val):
         """
-        Sets the value of :py:attr:`maxEpoch`.
+        Sets the value of :py:attr:`maxEpoch`. Default 50.
         """
         self._paramMap[self.maxEpoch] = val
         return self
@@ -240,7 +240,8 @@ class NNEstimator(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, 
 
     def setEndWhen(self, trigger):
         """
-        When to stop the training, passed in a Trigger. E.g. maxIterations(100)
+        When to stop the training, passed in a Trigger. E.g. maxIterations(100).
+        Default: MaxEpoch(50)
         """
         pythonBigDL_method_name = "setEndWhen"
         callBigDlFunc(self.bigdl_type, pythonBigDL_method_name, self.value, trigger)
@@ -255,9 +256,9 @@ class NNEstimator(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, 
 
     def setLearningRate(self, val):
         """
-        Sets the value of :py:attr:`learningRate`.
+        Sets the value of :py:attr:`learningRate`. Default 1e-3.
         """
-        self._paramMap[self.learningRate] = val
+        self._paramMap[self.learningRate] = float(val)
         return self
 
     def getLearningRate(self):
@@ -268,9 +269,9 @@ class NNEstimator(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, 
 
     def setLearningRateDecay(self, val):
         """
-        Sets the value of :py:attr:`learningRateDecay`.
+        Sets the value of :py:attr:`learningRateDecay`. Default 0.
         """
-        self._paramMap[self.learningRateDecay] = val
+        self._paramMap[self.learningRateDecay] = float(val)
         return self
 
     def getLearningRateDecay(self):
@@ -334,7 +335,7 @@ class NNEstimator(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, 
 
     def setValidation(self, trigger, val_df, val_method, batch_size):
         """
-        Set a validate evaluation during training
+        Set a validate evaluation during training. Default: not enabled.
 
         :param trigger: validation interval
         :param val_df: validation dataset
@@ -367,7 +368,7 @@ class NNEstimator(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, 
     def setConstantGradientClipping(self, min, max):
         """
         Set constant gradient clipping during the training process.
-        In order to take effect, it needs to be called before fit.
+        In order to take effect, it needs to be called before fit. Default: Not enabled.
 
         # Arguments
         min: The minimum value to clip by. Float.
@@ -382,7 +383,7 @@ class NNEstimator(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, 
     def setGradientClippingByL2Norm(self, clip_norm):
         """
         Clip gradient to a maximum L2-Norm during the training process.
-        In order to take effect, it needs to be called before fit.
+        In order to take effect, it needs to be called before fit. Default: Not enabled.
 
         # Arguments
         clip_norm: Gradient L2-Norm threshold. Float.

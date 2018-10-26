@@ -43,7 +43,8 @@ import scala.reflect.ClassTag
 
 private[nnframes] trait HasBatchSize extends Params {
 
-  final val batchSize: IntParam = new IntParam(this, "batchSize", "batchSize")
+  final val batchSize: IntParam = new IntParam(
+    this, "batchSize", "batchSize", ParamValidators.gt(0))
 
   def getBatchSize: Int = $(batchSize)
 }
