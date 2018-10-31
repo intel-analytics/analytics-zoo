@@ -22,7 +22,7 @@ import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity}
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.utils.{MultiShape, Shape, T}
 import com.intel.analytics.zoo.pipeline.api.net.TFNet.TFGraphHolder
-import org.tensorflow.framework.GraphDef
+import org.tensorflow.framework.{ConfigProto, GraphDef}
 import org.tensorflow.types.UInt8
 import org.tensorflow.{DataType, Graph, Session, Tensor => TTensor}
 
@@ -612,41 +612,11 @@ object TFNet {
 
   implicit val formats = DefaultFormats
 
-  val defaultSessionConfig = SessionConfig()
-
-  case class SessionConfig(intraOpParallelismThreads: Int = 1,
-                           interOpParallelismThreads: Int = 1,
-                           usePerSessionThreads: Boolean = true) {
-
-    // Ideally we should use the following code, however, importing tensorflow proto
-    // will conflict with bigdl.
-
-    //  val defaultSessionConfig = ConfigProto.newBuilder()
-    //    .setInterOpParallelismThreads(1)
-    //    .setIntraOpParallelismThreads(1)
-    //    .setUsePerSessionThreads(true)
-    //    .build().toByteArray
-
-    def toByteArray(): Array[Byte] = {
-      val intraSeq = if (intraOpParallelismThreads > 0) {
-        Seq(16, intraOpParallelismThreads)
-      } else {
-        Seq[Int]()
-      }
-      val interSeq = if (interOpParallelismThreads > 0) {
-        Seq(40, interOpParallelismThreads)
-      } else {
-        Seq[Int]()
-      }
-      val perSessSeq = if (usePerSessionThreads) {
-        Seq(72, 1)
-      } else {
-        Seq[Int]()
-      }
-
-      (intraSeq ++ interSeq ++ perSessSeq).map(_.toByte).toArray
-    }
-  }
+    val defaultSessionConfig = ConfigProto.newBuilder()
+      .setInterOpParallelismThreads(1)
+      .setIntraOpParallelismThreads(1)
+      .setUsePerSessionThreads(true)
+      .build()
 
 
   private def floatToInt(array: Array[Float]): Array[Int] = {
@@ -713,10 +683,10 @@ object TFNet {
   def apply(path: String,
             inputNames: Array[String],
             outputNames: Array[String],
-            config: SessionConfig): TFNet = {
+            config: ConfigProto): TFNet = {
     val graphDef = parseGraph(path)
     val graphMeta = Meta(inputNames = inputNames, outputNames = outputNames)
-    TFNet(graphDef, path, graphMeta, config.toByteArray())
+    TFNet(graphDef, path, graphMeta, config.toByteArray)
   }
 
   /**
@@ -733,7 +703,7 @@ object TFNet {
   }
 
 
-  def apply(folder: String, config: SessionConfig = TFNet.SessionConfig()): TFNet = {
+  def apply(folder: String, config: ConfigProto = TFNet.defaultSessionConfig): TFNet = {
     val (model, meta) = NetUtils.processTFFolder(folder)
     val graphDef = parseGraph(model)
     TFNet(graphDef, model, meta, config.toByteArray())

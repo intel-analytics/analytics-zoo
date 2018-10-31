@@ -25,6 +25,7 @@ import com.intel.analytics.zoo.pipeline.api.keras.layers.WordEmbedding
 import com.intel.analytics.zoo.pipeline.api.keras.models.{Model, Sequential}
 import com.intel.analytics.zoo.pipeline.api.net.{GraphNet, TFNet}
 import org.slf4j.LoggerFactory
+import org.tensorflow.framework.ConfigProto
 
 object ModelLoader extends InferenceSupportive {
   val logger = LoggerFactory.getLogger(getClass)
@@ -61,7 +62,7 @@ object ModelLoader extends InferenceSupportive {
   }
 
   def loadFloatModelForTF(modelPath: String,
-                          config: TFNet.SessionConfig = TFNet.defaultSessionConfig)
+                          config: ConfigProto = TFNet.defaultSessionConfig)
   : AbstractModule[Activity, Activity, Float] = {
     timing("load model") {
       logger.info(s"load model from $modelPath")

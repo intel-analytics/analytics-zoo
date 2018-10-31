@@ -21,6 +21,7 @@ import com.intel.analytics.bigdl.optim.LocalPredictor
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.zoo.pipeline.api.net.TFNet
+import org.tensorflow.framework.ConfigProto
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
@@ -49,8 +50,11 @@ object InferenceModelFactory {
                                    intraOpParallelismThreads: Int = 1,
                                    interOpParallelismThreads: Int = 1,
                                    usePerSessionThreads: Boolean = true): FloatInferenceModel = {
-    val sessionConfig = TFNet.SessionConfig(intraOpParallelismThreads,
-      interOpParallelismThreads, usePerSessionThreads)
+    val sessionConfig = ConfigProto.newBuilder()
+      .setInterOpParallelismThreads(interOpParallelismThreads)
+      .setIntraOpParallelismThreads(intraOpParallelismThreads)
+      .setUsePerSessionThreads(usePerSessionThreads)
+      .build()
     val model = ModelLoader.loadFloatModelForTF(modelPath, sessionConfig)
     model.evaluate()
     new FloatInferenceModel(model)
