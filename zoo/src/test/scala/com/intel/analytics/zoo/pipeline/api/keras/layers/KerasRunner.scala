@@ -24,6 +24,7 @@ import scala.sys.process._
 
 sealed trait MainCodeType
 object Loss extends MainCodeType
+object OutputTensor extends MainCodeType
 object Layer extends MainCodeType
 object Regularizer extends MainCodeType
 
@@ -55,10 +56,19 @@ object KerasRunner {
   """
     |grad_input = K.get_session().run(K.gradients(loss, [input_tensor]),
     |                           feed_dict={input_tensor: input, target_tensor: Y})
-    |output = K.get_session().run(loss, feed_dict={input_tensor: input, target_tensor: Y})
+    |output = K.get_session().run(output_tensor, feed_dict={input_tensor: input})
     |weights = []
     |grad_weight = []
   """.stripMargin
+  val code_for_tensor =
+    """
+      |output = K.get_session().run(output_tensor, feed_dict={input_tensor: input})
+      |grad_input = K.get_session().run(K.gradients(output_tensor * output, [input_tensor]),
+      |                           feed_dict={input_tensor: input})
+      |Y = []
+      |weights = []
+      |grad_weight = []
+    """.stripMargin
   val code_for_layer =
     """
       |Y = []
@@ -144,6 +154,7 @@ object KerasRunner {
       codeType match {
         case Layer => code_for_layer
         case Loss => code_for_loss
+        case OutputTensor => code_for_tensor
         case Regularizer => code_for_regularizer
       })
     writer.write(code_for_save)

@@ -71,6 +71,22 @@ abstract class KerasBaseSpec extends ZooSpecHelper {
     }
   }
 
+  def checkOutputAndGradForTensor(bmodel: AbstractModule[Tensor[Float], Tensor[Float], Float],
+      kerasCode: String,
+      precision: Double = 1e-5): Unit = {
+    ifskipTest()
+    val (gradInput, gradWeight, weights, input, target, output) =
+      KerasRunner.run(kerasCode, OutputTensor)
+
+    val boutput = bmodel.forward(input)
+    boutput.size().sameElements(output.size()) should be (true)
+    boutput.almostEqual(output, precision) should be (true)
+
+    val bgradInput = bmodel.backward(input, boutput.clone())
+    bgradInput.size().sameElements(gradInput.size()) should be (true)
+    bgradInput.almostEqual(gradInput, precision) should be (true)
+  }
+
   def checkOutputAndGradForLoss(bmodel: AbstractCriterion[Tensor[Float], Tensor[Float], Float],
                                 kerasCode: String,
                                 precision: Double = 1e-5): Unit = {

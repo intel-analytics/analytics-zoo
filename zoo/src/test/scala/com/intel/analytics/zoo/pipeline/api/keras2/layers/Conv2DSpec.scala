@@ -32,13 +32,13 @@ class Conv2DSpec extends KerasBaseSpec {
         val shape: Array[Int] = in(0).size()
         val weights = Permute[Float](Array(4, 3, 1, 2), inputShape = Shape(shape))
           .doBuild(inputShape = Shape(shape)).forward(in(0))
-        Array(weights)
+        Array(weights).asInstanceOf[Array[Tensor[Float]]]
       case _ =>
         in(0).resize(Array(1) ++ in(0).size())
         val shape: Array[Int] = in(0).size()
         val weights = Permute[Float](Array(4, 3, 1, 2), inputShape = Shape(shape))
           .doBuild(inputShape = Shape(shape)).forward(in(0))
-        Array(weights, in(1))
+        Array(weights, in(1)).asInstanceOf[Array[Tensor[Float]]]
     }
   }
   def weightConverterNHWC(in: Array[Tensor[Float]]): Array[Tensor[Float]] = {
