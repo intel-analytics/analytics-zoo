@@ -19,7 +19,7 @@ package com.intel.analytics.zoo.pipeline.api.keras2.layers
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.utils.Shape
 import com.intel.analytics.zoo.pipeline.api.keras.layers.{Keras2Test, KerasBaseSpec}
-import com.intel.analytics.zoo.pipeline.api.keras.models.Sequential
+import com.intel.analytics.zoo.pipeline.api.keras2.models.Sequential
 import com.intel.analytics.zoo.pipeline.api.keras.serializer.ModuleSerializationTest
 
 import scala.util.Random

@@ -18,10 +18,9 @@ package com.intel.analytics.zoo.pipeline.api.keras2.layers
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.utils.{Shape, T}
 import com.intel.analytics.zoo.pipeline.api.keras.layers.{Input, InputLayer, Keras2Test, KerasBaseSpec}
-import com.intel.analytics.zoo.pipeline.api.keras.models.Model
+import com.intel.analytics.zoo.pipeline.api.keras2.models.Model
 import com.intel.analytics.zoo.pipeline.api.keras.serializer.ModuleSerializationTest
 import com.intel.analytics.zoo.pipeline.api.keras2.layers.Average.average
-import com.intel.analytics.zoo.pipeline.api.keras2.layers.Maximum.maximum
 
 import scala.util.Random
 

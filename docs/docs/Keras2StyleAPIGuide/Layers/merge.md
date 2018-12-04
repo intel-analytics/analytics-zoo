@@ -394,3 +394,236 @@ Output is
  [0.439386   0.8378809  0.20248675 0.7167001  0.5445443  0.1943143
   0.2989631  0.25640595]]
 ```
+
+## **Average**
+Layer that computes the average (element-wise) a list of inputs.
+
+It takes as input a list of tensors,
+all of the same shape, and returns
+a single tensor (also of the same shape).
+
+**Scala:**
+```scala
+Average()
+```
+**Python:**
+```python
+Average()
+```
+
+**Scala example:**
+```scala
+import com.intel.analytics.bigdl.tensor.Tensor
+import com.intel.analytics.bigdl.utils.{Shape, T}
+import com.intel.analytics.zoo.pipeline.api.keras.layers.{Input, InputLayer, Keras2Test, KerasBaseSpec}
+import com.intel.analytics.zoo.pipeline.api.keras.models.Model
+import com.intel.analytics.zoo.pipeline.api.keras.serializer.ModuleSerializationTest
+import com.intel.analytics.zoo.pipeline.api.keras2.layers.Average.average
+
+val input1 = Tensor[Float](3, 10).rand(0, 1)
+val input2 = Tensor[Float](3, 10).rand(1, 2)
+val input3 = Tensor[Float](3, 10).rand(2, 3)
+val input = T(1 -> input1, 2 -> input2, 3 -> input3)
+val l1 = Input[Float](inputShape = Shape(10))
+val l2 = Input[Float](inputShape = Shape(10))
+val l3 = Input[Float](inputShape = Shape(10))
+val layer = Average[Float]().inputs(Array(l1, l2, l3))
+val model = Model[Float](Array(l1, l2, l3), layer)
+model.getOutputShape().toSingle().toArray should be (Array(-1, 10))
+model.forward(input) should be ((input1 + input2 + input3)/3)
+```
+Input is:
+```scala
+input: {
+3: 2.1388125	2.6964622	2.8276837	2.3661323	2.4378736	2.2604358	2.465229	2.9974892	2.3736873	2.9525855	
+       2.9544477	2.0917578	2.5748422	2.8470073	2.8541746	2.8388956	2.4446492	2.3847318	2.772636	2.9858146	
+       2.923554	2.4356844	2.1714668	2.496371	2.6633065	2.074316	2.1330173	2.702345	2.1016605	2.4054792	
+       [com.intel.analytics.bigdl.tensor.DenseTensor of size 3x10]
+	2: 1.7939124	1.8057413	1.991265	1.2754726	1.8769448	1.3218789	1.4537191	1.144134	1.516381	1.1731085	
+       1.1079352	1.0502894	1.6418922	1.3537997	1.4794713	1.1901937	1.4494545	1.0795411	1.661124	1.0139834	
+       1.5142206	1.4812648	1.4023355	1.0209563	1.312892	1.0843754	1.1938657	1.16379	1.9043504	1.2607019	
+       [com.intel.analytics.bigdl.tensor.DenseTensor of size 3x10]
+	1: 0.44098258	0.76005894	0.22524318	0.1684992	0.0051373183	0.21741198	0.2731409	0.35371205	0.05021227	0.884149	
+       0.84959924	0.8669313	0.029727593	0.35729104	0.6929461	0.41323605	0.37593237	0.73493475	0.84717196	0.89586157	
+       0.11885294	0.15163219	0.5033071	0.7372261	0.41698205	0.87994254	0.6085509	0.3116428	0.1701491	0.78339463	
+       [com.intel.analytics.bigdl.tensor.DenseTensor of size 3x10]
+}
+```
+Output is:
+```scala
+output: 
+1.4579027	1.7540874	1.6813973	1.2700348	1.4399853	1.2665756	1.3973631	1.4984453	1.3134269	1.6699476	
+1.6373274	1.3363261	1.4154873	1.519366	1.6755308	1.4807751	1.4233454	1.3997358	1.7603106	1.6318865	
+1.5188758	1.3561939	1.3590364	1.4181845	1.4643935	1.3462113	1.3118113	1.3925927	1.3920534	1.4831918	
+[com.intel.analytics.bigdl.tensor.DenseTensor of size 3x10]
+
+```
+
+**Python example:**
+```python
+import numpy as np
+from zoo.pipeline.api.keras.models import Model
+from zoo.pipeline.api.keras2.layers import Average
+from zoo.pipeline.api.keras.layers import Input
+
+l1 = Input(shape=[10])
+l2 =Input(shape=[10])
+l3 =Input(shape=[10])
+layer = Average()([l1, l2, l3])
+input1 = np.random.random([3, 10])
+input2 = 5 * np.random.random([3, 10])
+input3 = np.random.random([3, 10])
+model = Model([l1, l2, l3], layer)
+output = model.forward([input1, input2, input3])
+```
+Input is:
+```python
+input1:
+[[0.41363052 0.6743329  0.145657   0.6637766  0.66581595 0.6749803 
+  0.44645357 0.20913158	0.37975723 0.9108898]	
+ [0.8512118	 0.11105641	0.8040392  0.52162653 0.64165527 0.7338619
+  0.87358207 0.45065743	0.3629784  0.98838156]	
+ [0.98552185 0.44495004	0.45191813 0.63229626 0.8232937	 0.68438464
+  0.45459357 1.2166076E-4 0.838354	0.85861313]]	
+input2:
+[[1.2572492  1.7911074  1.552091   1.3164328  1.5672878	1.2264123
+  1.0933136	 1.1894734	1.7110546  1.4871693]	
+ [1.2493236	 1.0981448	1.2093825  1.385048	  1.7991946	1.7278074
+  1.3594079	 1.7045076	1.010181   1.8572828]	
+ [1.9143413	 1.2307098	1.4673012  1.0212818  1.1806543	1.3802769
+  1.8570768	 1.117075	1.5691379  1.9965043]]	
+input3:
+[[2.8687525	 2.257423	2.5164936  2.2316918  2.444299	2.791102
+  2.3251874	 2.64277	2.094336   2.0139678]	
+ [2.80216	 2.7153122	2.693267   2.8926282  2.760983	2.4018617
+  2.3492196	 2.5027466	2.3177707  2.1410158]	
+ [2.8840475	 2.4416642	2.5429523  2.5207841  2.7137184	2.0619774
+  2.0841057	 2.2143555	2.4883647  2.284767]]	
+
+```
+Output is
+```python
+[[1.5132108	 1.5742878	1.4047472  1.4039671  1.5591342	 1.5641649
+  1.2883182	 1.347125	1.3950493  1.4706757]	
+ [1.6342319	 1.3081712	1.5688963  1.5997677  1.7339443	 1.6211771
+  1.5274032	 1.5526371	1.2303101  1.6622267]	
+ [1.9279703	 1.3724413	1.4873905  1.3914541  1.5725555	 1.3755463
+  1.4652586	 1.1105174	1.6319523  1.7132947]]	
+
+```
+
+---
+## **average**
+Functional interface to the `Average` layer.
+
+**Scala:**
+```scala
+average(inputs)
+```
+**Python:**
+```python
+average(inputs)
+```
+
+**Parameters:**
+
+* `inputs`: A list of input tensors (at least 2).
+* `**kwargs`: Standard layer keyword arguments.
+
+**Scala example:**
+```scala
+
+import com.intel.analytics.bigdl.tensor.Tensor
+import com.intel.analytics.bigdl.utils.{Shape, T}
+import com.intel.analytics.zoo.pipeline.api.keras.layers.{Input, InputLayer, Keras2Test, KerasBaseSpec}
+import com.intel.analytics.zoo.pipeline.api.keras.models.Model
+import com.intel.analytics.zoo.pipeline.api.keras.serializer.ModuleSerializationTest
+import com.intel.analytics.zoo.pipeline.api.keras2.layers.Average.average
+
+val input1 = Tensor[Float](3, 10).rand(0, 1)
+val input2 = Tensor[Float](3, 10).rand(1, 2)
+val input3 = Tensor[Float](3, 10).rand(2, 3)
+val input = T(1 -> input1, 2 -> input2, 3 -> input3)
+val l1 = Input[Float](inputShape = Shape(10))
+val l2 = Input[Float](inputShape = Shape(10))
+val l3 = Input[Float](inputShape = Shape(10))
+val layer = average(inputs = List(l1, l2, l3))
+val model = Model[Float](Array(l1, l2, l3), layer)
+model.getOutputShape().toSingle().toArray should be (Array(-1, 10))
+model.forward(input) should be ((input1 + input2 + input3)/3)
+```
+Input is:
+```scala
+input: {
+3: 2.8428721	2.2226758	2.5208285	2.2367554	2.4270968	2.5545428	2.1287117	2.6222005	2.431273	2.8214326	
+       2.8859177	2.3255236	2.9590778	2.9784636	2.2240565	2.0665257	2.242283	2.740618	2.0167441	2.0605018	
+       2.026233	2.6200292	2.2228913	2.8658607	2.199205	2.5279496	2.2850516	2.2320945	2.8136265	2.2246487	
+       [com.intel.analytics.bigdl.tensor.DenseTensor of size 3x10]
+	2: 1.7467746	1.8021997	1.6509205	1.6072322	1.4914033	1.5677507	1.5366478	1.7563739	1.5117183	1.6645014	
+       1.5314101	1.3897215	1.7508979	1.9116509	1.8281436	1.8060269	1.6515387	1.0517279	1.8487817	1.3851342	
+       1.7522845	1.388323	1.2490842	1.746568	1.0954672	1.7134392	1.4903576	1.3686041	1.6109412	1.079587	
+       [com.intel.analytics.bigdl.tensor.DenseTensor of size 3x10]
+	1: 0.9149919	0.20087978	0.5228629	0.2721904	0.671595	0.9914089	0.08755763	0.06214724	0.24063993	0.30998093	
+       0.93342364	0.035474923	0.60141927	0.055402536	0.6627572	0.66029215	0.052742954	0.84818095	0.48247424	0.8988862	
+       0.019309381	0.8240607	0.5062556	0.2224868	0.07100526	0.27008608	0.04632365	0.40351728	0.49034202	0.76545227	
+       [com.intel.analytics.bigdl.tensor.DenseTensor of size 3x10]
+ }
+```
+Output is:
+```scala
+output: 
+1.8348796	1.4085851	1.5648706	1.3720593	1.5300317	1.7045674	1.2509725	1.4802406	1.3945436	1.5986383	
+1.7835839	1.2502401	1.7704649	1.6485057	1.5716524	1.5109482	1.3155216	1.5468423	1.4493334	1.4481742	
+1.2659423	1.6108043	1.3260771	1.6116384	1.1218925	1.503825	1.273911	1.3347386	1.6383032	1.3565626	
+[com.intel.analytics.bigdl.tensor.DenseTensor of size 3x10]
+```
+
+**Python example:**
+```python
+import numpy as np
+from zoo.pipeline.api.keras.models import Model
+from zoo.pipeline.api.keras2.layers import average
+from zoo.pipeline.api.keras.layers import Input
+
+l1 = Input(shape=[10])
+l2 =Input(shape=[10])
+l3 =Input(shape=[10])
+layer = average([l1, l2, l3])
+input1 = np.random.random([3, 10])
+input2 = 5 * np.random.random([3, 10])
+model = Model([l1, l2, l3], layer)
+output = model.forward([input1, input2, input3])
+```
+Input is:
+```python
+input1:
+[[0.02466183 0.27168578	0.2550742  0.21883814 0.82554376 0.28807813
+  0.13608417 0.09758039	0.5034134  0.15892369]	
+ [0.87264824 0.14789267	0.9338583  0.57726556 0.8708862	 0.5165683
+  0.17245324 0.9322028	0.41752812 0.12310909]	
+ [0.79332834 0.5849009	0.99154574 0.3219758  0.2697678	 0.20010926
+  0.26830813 0.2019596	0.6096836  0.03093836]]	
+input2:
+[[1.4111987  1.198054	1.842369   1.8801643  1.4168038	 1.3551488
+  1.975179	 1.9757051	1.1127443  1.4476182]	
+ [1.232829	 1.7522926	1.532449   1.3352888  1.2850991	 1.0257217
+  1.7294677	 1.308971	1.2973334  1.6694721]	
+ [1.8759854	 1.4279369	1.5563112  1.5380665  1.6536583	 1.2297603
+  1.45884	 1.8191999	1.118961   1.1868691]]	
+input3:
+[[2.519016	 2.339481	2.4914405  2.0135844  2.8932412	 2.158044
+  2.9289017	 2.0235717	2.2571347  2.2399058]	
+ [2.1186874	 2.843763	2.7362454  2.2478065  2.3966339	 2.4745004
+  2.9351826	 2.6583135	2.8862307  2.4307551]	
+ [2.2603345	 2.7962108	2.2940488  2.6015089  2.7432284	 2.3210974
+  2.3186648	 2.4515545	2.9862666  2.1030922]]	
+```
+Output is
+```python
+[[1.3182921	 1.2697403	1.5296278  1.3708624  1.7118629	 1.2670903
+  1.680055	 1.3656191	1.2910975  1.2821493]	
+ [1.4080551	 1.5813162	1.7341843  1.3867869  1.5175397	 1.3389301
+  1.612368	 1.6331625	1.5336975  1.4077787]	
+ [1.6432161	 1.6030163	1.6139686  1.4871838  1.5555515	 1.2503223
+  1.3486044	 1.4909047	1.5716372  1.1069666]]	
+```

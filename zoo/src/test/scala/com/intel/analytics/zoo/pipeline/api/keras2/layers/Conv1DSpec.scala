@@ -15,25 +15,20 @@
  */
 
 package com.intel.analytics.zoo.pipeline.api.keras2.layers
-
 import com.intel.analytics.bigdl.nn.abstractnn.AbstractModule
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.utils.Shape
 import com.intel.analytics.zoo.pipeline.api.keras.layers.{Keras2Test, KerasBaseSpec}
-import com.intel.analytics.zoo.pipeline.api.keras.models.Sequential
+import com.intel.analytics.zoo.pipeline.api.keras2.models.Sequential
 import com.intel.analytics.zoo.pipeline.api.keras.serializer.ModuleSerializationTest
-
 import scala.util.Random
-
 class Conv1DSpec extends KerasBaseSpec {
-
   def weightConverter(in: Array[Tensor[Float]]): Array[Tensor[Float]] = {
     in.length match {
       case 1 => in
       case _ => Array(in(0).resize(Array(1) ++ in(0).size()), in(1))
     }
   }
-
   "Conv1D" should "be the same as Keras" taggedAs(Keras2Test) in {
     val kerasCode =
       """
@@ -49,7 +44,6 @@ class Conv1DSpec extends KerasBaseSpec {
     checkOutputAndGrad(seq.asInstanceOf[AbstractModule[Tensor[Float], Tensor[Float], Float]],
       kerasCode, weightConverter)
   }
-
   "Conv1D without bias" should "be the same as Keras" taggedAs(Keras2Test) in {
     val kerasCode =
       """
@@ -67,9 +61,7 @@ class Conv1DSpec extends KerasBaseSpec {
     checkOutputAndGrad(seq.asInstanceOf[AbstractModule[Tensor[Float], Tensor[Float], Float]],
       kerasCode, weightConverter)
   }
-
 }
-
 class Conv1DSerialTest extends ModuleSerializationTest {
   override def test(): Unit = {
     val layer = Conv1D[Float](64, 3, inputShape = Shape(12, 20))

@@ -14,19 +14,14 @@
  * limitations under the License.
  */
 package com.intel.analytics.zoo.pipeline.api.keras.layers
-
 import java.io.{File, PrintWriter}
-
 import com.intel.analytics.bigdl.tensor.Tensor
-
 import scala.io.Source
 import scala.sys.process._
-
 sealed trait MainCodeType
 object Loss extends MainCodeType
 object Layer extends MainCodeType
 object Regularizer extends MainCodeType
-
 object KerasRunner {
   // scalastyle:off
   val code_head =
@@ -50,15 +45,14 @@ object KerasRunner {
       |    return tmp_file.name
       |
     """.stripMargin
-
   val code_for_loss =
-  """
-    |grad_input = K.get_session().run(K.gradients(loss, [input_tensor]),
-    |                           feed_dict={input_tensor: input, target_tensor: Y})
-    |output = K.get_session().run(loss, feed_dict={input_tensor: input, target_tensor: Y})
-    |weights = []
-    |grad_weight = []
-  """.stripMargin
+    """
+      |grad_input = K.get_session().run(K.gradients(loss, [input_tensor]),
+      |                           feed_dict={input_tensor: input, target_tensor: Y})
+      |output = K.get_session().run(loss, feed_dict={input_tensor: input, target_tensor: Y})
+      |weights = []
+      |grad_weight = []
+    """.stripMargin
   val code_for_layer =
     """
       |Y = []
@@ -69,8 +63,7 @@ object KerasRunner {
       |grad_weight = K.get_session().run(K.gradients(model.output * output, model.trainable_weights),  # grad_weight
       |                        feed_dict={input_tensor: input})
       |weights = model.get_weights()
-
-      """.stripMargin
+    """.stripMargin
   val code_for_save = """
       |result_list = []
       |for item in [("weights", weights), ("input", input), ("target", Y), ("grad_input", grad_input), ("grad_weight", grad_weight), ("output",output)]:
@@ -94,7 +87,6 @@ object KerasRunner {
       |
       |
     """.stripMargin
-
   val code_for_regularizer =
     """
       |Y = K.get_session().run(model.losses, feed_dict={input_tensor: input})
@@ -105,7 +97,6 @@ object KerasRunner {
       |weights = []
       |grad_weight = []
     """.stripMargin
-
   // scalastyle:on
   private def getWeightRelate(pvalues: Map[String, Array[Float]],
                               keyName: String): Array[Tensor[Float]] = {
@@ -121,7 +112,6 @@ object KerasRunner {
       null
     }
   }
-
   private def getNoneWeightRelate(pvalues: Map[String, Array[Float]],
                                   keyName: String): Tensor[Float] = {
     if (!pvalues.keySet.filter(key => key.contains(keyName)).isEmpty) {
@@ -132,7 +122,6 @@ object KerasRunner {
       null
     }
   }
-
   // return: (grad_input, grad_weight, weights, input, target, output)
   def run(code: String, codeType: MainCodeType = Layer): (Tensor[Float], Array[Tensor[Float]],
     Array[Tensor[Float]], Tensor[Float], Tensor[Float], Tensor[Float]) = {
@@ -151,33 +140,23 @@ object KerasRunner {
     val pcodeFileAbsPath = pcodeFile.getAbsolutePath
     println("python code file: " + pcodeFileAbsPath)
     val resultPaths = s"python ${pcodeFileAbsPath}".!!.split("\n")
-
     val pvalues = resultPaths.map {file =>
       val value = Source.fromFile(file).getLines().map(_.toFloat).toArray
       val key = file.split("-")(2)
       key -> value
     }.toMap
-
     val grad_input = getNoneWeightRelate(pvalues, "grad_input")
-
     val grad_weight = getWeightRelate(pvalues, "grad_weight")
-
     val weights = getWeightRelate(pvalues, "weights")
-
     val input = getNoneWeightRelate(pvalues, "input")
-
     val target = getNoneWeightRelate(pvalues, "target")
-
     var output = getNoneWeightRelate(pvalues, "output")
-
     resultPaths.foreach {path =>
       new File(path).delete()
     }
     if (pcodeFile.exists()) {
       pcodeFile.delete()
     }
-
     (grad_input, grad_weight, weights, input, target, output)
   }
-
 }

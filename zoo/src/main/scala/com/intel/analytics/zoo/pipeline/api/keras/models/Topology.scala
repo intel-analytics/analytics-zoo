@@ -472,7 +472,7 @@ abstract class KerasNet[T](implicit val tag: ClassTag[T], implicit val ev: Tenso
       positions: Array[Double] = Array(.33, .55, .67, 1)): Unit
 }
 
-class Model[T: ClassTag] private (private val _inputs : Seq[ModuleNode[T]],
+class Model[T: ClassTag] private[zoo] (private val _inputs : Seq[ModuleNode[T]],
     private val _outputs : Seq[ModuleNode[T]])(implicit ev: TensorNumeric[T])
   extends KerasNet[T] with NetUtils[T, Model[T]] {
   this.labor = doBuild(null)
@@ -679,7 +679,7 @@ object Model extends KerasLayerSerializable {
 
 }
 
-class Sequential[T: ClassTag] private ()
+class Sequential[T: ClassTag] private[zoo] ()
   (implicit ev: TensorNumeric[T]) extends KerasNet[T] {
 
   private[zoo] var frozen: Boolean = false

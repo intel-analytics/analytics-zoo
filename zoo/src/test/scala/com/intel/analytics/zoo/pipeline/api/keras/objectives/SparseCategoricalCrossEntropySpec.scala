@@ -18,9 +18,8 @@ package com.intel.analytics.zoo.pipeline.api.keras.objectives
 
 import com.intel.analytics.bigdl.nn.{LogSoftMax, SoftMax}
 import com.intel.analytics.bigdl.tensor.Tensor
-import com.intel.analytics.zoo.pipeline.api.keras.layers.{KerasRunner, Loss}
+import com.intel.analytics.zoo.pipeline.api.keras.layers.{KerasBaseSpec, KerasRunner, Loss}
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric.NumericFloat
-import com.intel.analytics.zoo.pipeline.api.keras.layers.KerasBaseSpec
 
 import scala.math.abs
 
