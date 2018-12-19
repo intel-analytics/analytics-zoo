@@ -7,8 +7,8 @@ For Python users, Analytics Zoo can be installed either [from pip](#install-from
 You can use the following command to install the latest release version of __analytics-zoo__ via pip easily:
 
 ```bash
-pip install analytics-zoo==0.3.0     # for Python 2.7
-pip3 install analytics-zoo==0.3.0    # for Python 3.5 and Python 3.6
+pip install analytics-zoo==0.3.0 pyspark==2.3.2    # for Python 2.7
+pip3 install analytics-zoo==0.3.0 pyspark==2.3.2   # for Python 3.5 and Python 3.6
 ```
 
 * Note that you might need to add `sudo` if you don't have the permission for installation.
@@ -29,7 +29,8 @@ sc = init_nncontext()
 2. Pip install supports __Mac__ and __Linux__ platforms.
 3. Pip install only supports __local__ mode. Cluster mode might be supported in the future. For those who want to use Analytics Zoo in cluster mode, please try to [install without pip](#install-without-pip).
 4. You need to install Java __>= JDK8__ before running Analytics Zoo, which is required by `pyspark`.
-5. `pyspark`, `bigdl==0.6.0` and their dependencies will automatically be installed if they haven't been detected in the current Python environment.
+5. `bigdl==0.6.0` and its dependencies will automatically be installed if they haven't been detected in the current Python environment.
+6. We've tested with `pyspark==2.3.2` and thus you are strongly recommended to install this version as guided in the command above.
 
 
 ---
