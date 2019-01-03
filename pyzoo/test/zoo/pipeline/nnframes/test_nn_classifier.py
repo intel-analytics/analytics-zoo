@@ -21,12 +21,14 @@ import string
 from bigdl.nn.criterion import *
 from bigdl.nn.layer import *
 from bigdl.optim.optimizer import *
+from bigdl.util.common import EvaluatedResult
 from numpy.testing import assert_allclose
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import MinMaxScaler
 from pyspark.sql.types import *
 
 from zoo.common.nncontext import *
+from zoo.pipeline.api.keras.metrics import AUC
 from zoo.pipeline.nnframes import *
 from zoo.pipeline.api.keras.optimizers import Adam as KAdam
 from zoo.feature.common import *
@@ -591,6 +593,29 @@ class TestNNClassifer():
             except OSError as exc:
                 if exc.errno != errno.ENOENT:  # ENOENT - no such file or directory
                     raise  # re-raise exception
+
+    def test_NNEvaluator_NNClassifier_AUC(self):
+        model = Sequential().add(Linear(2, 1)).add(Sigmoid())
+        criterion = BCECriterion()
+        classifier = NNClassifier(model, criterion, SeqToTensor([2])) \
+            .setBatchSize(4) \
+            .setLearningRate(0.2).setMaxEpoch(40)
+
+        data = self.sc.parallelize([
+            ((2.0, 1.0), 0.0),
+            ((1.0, 2.0), 1.0),
+            ((2.0, 1.0), 0.0),
+            ((1.0, 2.0), 1.0)])
+
+        schema = StructType([
+            StructField("features", ArrayType(DoubleType(), False), False),
+            StructField("label", DoubleType(), False)])
+        df = self.sqlContext.createDataFrame(data, schema)
+        nnClassifierModel = classifier.fit(df)
+        assert isinstance(nnClassifierModel, NNClassifierModel)
+        res = nnClassifierModel.transform(df)
+        eva_results = NNEvaluator.evaluate(res, [AUC()])
+        assert isinstance(eva_results[0], EvaluatedResult)
 
     def test_input_node_of_tfnet_from_session(self):
         import tensorflow as tff

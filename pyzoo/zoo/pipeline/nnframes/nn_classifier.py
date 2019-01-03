@@ -551,3 +551,19 @@ class NNClassifierModel(NNModel, HasThreshold):
     def load(path):
         jvalue = callBigDlFunc("float", "loadNNClassifierModel", path)
         return NNClassifierModel(model=None, feature_preprocessing=None, jvalue=jvalue)
+
+
+class NNEvaluator(JavaValue):
+    """
+    evaluate prediction and label columns with validation methods
+    """
+    def __init__(self, jvalue=None, bigdl_type="float"):
+        """
+        :param jvalue: Java object create by Py4j
+        :param bigdl_type(optional): Data type of BigDL model, "float"(default) or "double".
+        """
+        super(NNEvaluator, self).__init__(jvalue, bigdl_type)
+
+    def evaluate(self, df, vMethods):
+        results = callBigDlFunc(self.bigdl_type, "nnEvaluatorEvaluate", self.value, df, vMethods)
+        return results

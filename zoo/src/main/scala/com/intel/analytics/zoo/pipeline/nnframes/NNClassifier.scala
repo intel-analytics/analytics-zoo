@@ -22,7 +22,7 @@ import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.{Criterion, Module}
 import com.intel.analytics.zoo.feature.common._
 import com.intel.analytics.zoo.pipeline.nnframes.NNModel.NNModelWriter
-import org.apache.spark.ml.DefaultParamsWriterWrapper
+import org.apache.spark.ml.adapter.DefaultParamsWriterWrapper
 import org.apache.spark.ml.adapter.SchemaUtils
 import org.apache.spark.ml.param.{DoubleParam, ParamMap}
 import org.apache.spark.ml.util.{Identifiable, MLReadable, MLReader}

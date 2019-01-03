@@ -54,6 +54,16 @@ object PythonZooKeras {
   def ofFloat(): PythonZooKeras[Float] = new PythonZooKeras[Float]()
 
   def ofDouble(): PythonZooKeras[Double] = new PythonZooKeras[Double]()
+
+  private[zoo] def processEvaluateResult [T: ClassTag] (
+      resultArray: Array[(ValidationResult, ValidationMethod[T])]
+    ): JList[EvaluatedResult] = {
+
+    resultArray.map { result =>
+      EvaluatedResult(result._1.result()._1, result._1.result()._2,
+        result._2.toString())
+    }.toList.asJava
+  }
 }
 
 class PythonZooKeras[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZoo[T] {
@@ -139,20 +149,12 @@ class PythonZooKeras[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZ
     module.fit(trainData, nbEpoch, valData)
   }
 
-  private def processEvaluateResult(
-    resultArray: Array[(ValidationResult, ValidationMethod[T])]): JList[EvaluatedResult] = {
-    resultArray.map { result =>
-      EvaluatedResult(result._1.result()._1, result._1.result()._2,
-        result._2.toString())
-    }.toList.asJava
-  }
-
   def zooEvaluate(
       module: KerasNet[T],
       x: JavaRDD[Sample],
       batchSize: Int = 32): JList[EvaluatedResult] = {
     val resultArray = module.evaluate(toJSample(x), batchSize)
-    processEvaluateResult(resultArray)
+    PythonZooKeras.processEvaluateResult(resultArray)
   }
 
   def zooEvaluate(
@@ -160,7 +162,7 @@ class PythonZooKeras[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZ
       x: ImageSet,
       batchSize: Int): JList[EvaluatedResult] = {
     val resultArray = module.evaluate(x, batchSize)
-    processEvaluateResult(resultArray)
+    PythonZooKeras.processEvaluateResult(resultArray)
   }
 
   def zooEvaluate(
@@ -168,7 +170,7 @@ class PythonZooKeras[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZ
       x: TextSet,
       batchSize: Int): JList[EvaluatedResult] = {
     val resultArray = module.evaluate(x, batchSize)
-    processEvaluateResult(resultArray)
+    PythonZooKeras.processEvaluateResult(resultArray)
   }
 
   def zooSetTensorBoard(

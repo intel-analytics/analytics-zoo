@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.ml
+package org.apache.spark.ml.adapter
 
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.param.Params
@@ -40,3 +40,5 @@ object DefaultParamsWriterWrapper {
     DefaultParamsReader.getAndSetParams(instance, metadata)
   }
 }
+
+trait HasLabelCol extends org.apache.spark.ml.param.shared.HasLabelCol
