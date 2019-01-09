@@ -30,7 +30,7 @@ import org.apache.spark.rdd.RDD
 
 case class User(userId: Int, gender: String, age: Int, occupation: Int)
 
-case class Item(itemId: Int, title: String, genres: String)
+case class Item(itemId: Int, title: String, genres: Seq[String])
 
 case class WNDParams(val modelType: String = "wide_n_deep",
                      val inputDir: String = "./data/ml-1m/"
@@ -70,8 +70,8 @@ object WideAndDeepExample {
       wideBaseDims = Array(21, 3),
       wideCrossCols = Array("age-gender"),
       wideCrossDims = Array(bucketSize),
-      indicatorCols = Array("genres", "gender"),
-      indicatorDims = Array(19, 3),
+      indicatorCols = Array("genres"),
+      indicatorDims = Array(19),
       embedCols = Array("userId", "itemId"),
       embedInDims = Array(userCount, itemCount),
       embedOutDims = Array(64, 64),
@@ -139,7 +139,7 @@ object WideAndDeepExample {
     val itemDF = sqlContext.read.text(dataPath + "/movies.dat").as[String]
       .map(x => {
         val line = x.split("::")
-        Item(line(0).toInt, line(1), line(2).split('|')(0))
+        Item(line(0).toInt, line(1), line(2).split('|'))
       }).toDF()
 
     val minMaxRow = ratings.agg(max("userId"), max("itemId")).collect()(0)
@@ -162,7 +162,10 @@ object WideAndDeepExample {
     val genresList = Array("Crime", "Romance", "Thriller", "Adventure", "Drama", "Children's",
       "War", "Documentary", "Fantasy", "Mystery", "Musical", "Animation", "Film-Noir", "Horror",
       "Western", "Comedy", "Action", "Sci-Fi")
-    val genresUDF = udf(Utils.categoricalFromVocabList(genresList))
+//    val genresUDF = udf(Utils.categoricalFromVocabList(genresList))
+    val genresUDF = udf((genresArray:Seq[String]) =>{
+      genresArray.map(Utils.categoricalFromVocabList(genresList))
+    })
 
     val userDfUse = userDF
       .withColumn("age-gender", bucketUDF(col("age"), col("gender")))
