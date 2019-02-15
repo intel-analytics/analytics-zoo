@@ -23,6 +23,25 @@ Remarks:
 
 - Please choose the available suffix above according to your Spark platform and the BigDL version you want to use.
 - You don't need to add the BigDL dependency to your project as it has already been packaged within Analytics Zoo.
+- Please add below repository to your pom.xml to get zoo-core which is now hosted on OSSRH.
+```xml
+<repository>
+    <id>sonatype</id>
+    <name>sonatype repository</name>
+    <url>https://oss.sonatype.org/content/groups/public/</url>
+    <releases>
+        <enabled>true</enabled>
+    </releases>
+    <snapshots>
+        <enabled>true</enabled>
+    </snapshots>
+</repository>
+```
+
+SBT developers can use
+```sbt
+resolvers += "ossrh repository" at "https://oss.sonatype.org/content/repositories/snapshots/"
+```
 
 
 ## **Download Analytics Zoo Source**
