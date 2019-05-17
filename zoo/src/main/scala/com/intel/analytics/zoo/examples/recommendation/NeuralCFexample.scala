@@ -17,14 +17,16 @@
 package com.intel.analytics.zoo.examples.recommendation
 
 import com.intel.analytics.bigdl._
-import com.intel.analytics.bigdl.dataset.Sample
-import com.intel.analytics.bigdl.nn.ClassNLLCriterion
+import com.intel.analytics.bigdl.dataset._
+import com.intel.analytics.bigdl.nn.{ClassNLLCriterion, Linear}
 import com.intel.analytics.bigdl.numeric.NumericFloat
 import com.intel.analytics.bigdl.optim.{Adam, Optimizer, Trigger}
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.utils.T
 import com.intel.analytics.zoo.common.NNContext
+import com.intel.analytics.zoo.models.common.ZooModel
 import com.intel.analytics.zoo.models.recommendation.{NeuralCF, UserItemFeature, Utils}
+import com.intel.analytics.zoo.optim.ZooOptimizer
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
@@ -33,11 +35,12 @@ import org.apache.spark.sql.functions._
 import scopt.OptionParser
 
 case class NeuralCFParams(val inputDir: String = "./data/ml-1m",
-                          val batchSize: Int = 8000,
+                          val batchSize: Int = 80000,
                           val nEpochs: Int = 10,
-                          val learningRate: Double = 1e-3,
-                          val learningRateDecay: Double = 1e-6
-                    )
+                          val learningRate: Double = 1e-2,
+                          val learningRateDecay: Double = 1e-6,
+                          val nRdds: Int = 3
+                         )
 
 case class Rating(userId: Int, itemId: Int, label: Int)
 
@@ -80,7 +83,7 @@ object NeuralCFexample {
     val (ratings, userCount, itemCount) = loadPublicData(sqlContext, param.inputDir)
 
     val isImplicit = false
-    val ncf = NeuralCF[Float](
+    val ncf: NeuralCF[Float] = NeuralCF[Float](
       userCount = userCount,
       itemCount = itemCount,
       numClasses = 5,
@@ -92,39 +95,63 @@ object NeuralCFexample {
       assemblyFeature(isImplicit, ratings, userCount, itemCount)
 
     val Array(trainpairFeatureRdds, validationpairFeatureRdds) =
-      pairFeatureRdds.randomSplit(Array(0.8, 0.2))
+      pairFeatureRdds.randomSplit(Array(0.8, 0.2), seed = 1L)
     val trainRdds = trainpairFeatureRdds.map(x => x.sample)
     val validationRdds = validationpairFeatureRdds.map(x => x.sample)
 
+    val beginTime = System.nanoTime()
+    val optimMethod: Adam[Float] = new Adam[Float](
+      learningRate = param.learningRate,
+      learningRateDecay = param.learningRateDecay)
+
+    //    val optimizer: ZooOptimizer[Float, MiniBatch[Float]] = ZooOptimizer(
+    //      model = ncf,
+    //      sampleRDD = trainRdds,
+    //      criterion = ClassNLLCriterion[Float](),
+    //      batchSize = param.batchSize,
+    //      nEpochs = param.nEpochs,
+    //      nRdds = param.nRdds)
+    //
+    //    optimizer
+    //      .setOptimMethod(optimMethod)
+    //      .optimize()
+    //
     val optimizer = Optimizer(
       model = ncf,
       sampleRDD = trainRdds,
       criterion = ClassNLLCriterion[Float](),
       batchSize = param.batchSize)
 
-    val optimMethod = new Adam[Float](
-      learningRate = param.learningRate,
-      learningRateDecay = param.learningRateDecay)
-
     optimizer
       .setOptimMethod(optimMethod)
       .setEndWhen(Trigger.maxEpoch(param.nEpochs))
       .optimize()
 
+    val endTime = System.nanoTime()
+
     val results = ncf.predict(validationRdds)
-    results.take(5).foreach(println)
+    results.take(10).foreach(println)
     val resultsClass = ncf.predictClass(validationRdds)
-    resultsClass.take(5).foreach(println)
+    resultsClass.take(10).foreach(println)
 
     val userItemPairPrediction = ncf.predictUserItemPair(validationpairFeatureRdds)
 
-    userItemPairPrediction.take(5).foreach(println)
+    userItemPairPrediction.take(10).foreach(println)
 
     val userRecs = ncf.recommendForUser(validationpairFeatureRdds, 3)
     val itemRecs = ncf.recommendForItem(validationpairFeatureRdds, 3)
 
     userRecs.take(10).foreach(println)
     itemRecs.take(10).foreach(println)
+
+    val pairPredictionsDF = sqlContext.createDataFrame(userItemPairPrediction).toDF()
+    val out = pairPredictionsDF.join(ratings, Array("userId", "itemId"))
+
+    val correctCounts = out.filter(col("prediction") === col("label")).count()
+
+    val accuracy = correctCounts.toDouble / out.count()
+    println("accuracy: " + accuracy)
+    println("training time: " + (endTime - beginTime) * (1e-9))
   }
 
   def loadPublicData(sqlContext: SQLContext, dataPath: String): (DataFrame, Int, Int) = {
