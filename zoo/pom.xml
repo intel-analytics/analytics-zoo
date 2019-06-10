@@ -7,7 +7,7 @@
     <parent>
         <artifactId>zoo-parent</artifactId>
         <groupId>com.intel.analytics.zoo</groupId>
-        <version>0.5.0</version>
+        <version>0.5.1</version>
     </parent>
 
     <artifactId>analytics-zoo-bigdl_${bigdl.version}-spark_${spark.version}</artifactId>
@@ -120,12 +120,12 @@
                 <dependency>
                     <groupId>com.intel.analytics.zoo</groupId>
                     <artifactId>zoo-core-openvino-java-linux</artifactId>
-                    <version>0.5.0</version>
+                    <version>0.5.1</version>
                 </dependency>
                 <dependency>
                     <groupId>com.intel.analytics.zoo</groupId>
                     <artifactId>zoo-core-pmem-java-linux</artifactId>
-                    <version>0.5.0</version>
+                    <version>0.5.1</version>
                 </dependency>
             </dependencies>
 
@@ -142,12 +142,12 @@
                 <dependency>
                     <groupId>com.intel.analytics.zoo</groupId>
                     <artifactId>zoo-core-openvino-java-linux</artifactId>
-                    <version>0.5.0</version>
+                    <version>0.5.1</version>
                 </dependency>
                 <dependency>
                     <groupId>com.intel.analytics.zoo</groupId>
                     <artifactId>zoo-core-pmem-java-linux</artifactId>
-                    <version>0.5.0</version>
+                    <version>0.5.1</version>
                 </dependency>
             </dependencies>
         </profile>
