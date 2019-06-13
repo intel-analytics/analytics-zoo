@@ -28,6 +28,7 @@ import com.intel.analytics.bigdl.transform.vision.image.opencv.OpenCVMat
 import com.intel.analytics.zoo.common.PythonZoo
 import com.intel.analytics.zoo.feature.common.Preprocessing
 import com.intel.analytics.zoo.feature.image._
+import com.intel.analytics.zoo.feature.image.roi.RoiRecordToFeature
 import com.intel.analytics.zoo.feature.image3d._
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.opencv.imgcodecs.Imgcodecs
@@ -228,15 +229,6 @@ class PythonImageFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyt
     ImageFeatureToTensor()
   }
 
-  def createImageChannelNormalizer(
-                                  meanR: Double, meanG: Double, meanB: Double,
-                                  stdR: Double = 1, stdG: Double = 1, stdB: Double = 1
-                                ): ImageChannelNormalize = {
-
-    ImageChannelNormalize(meanR.toFloat, meanG.toFloat, meanB.toFloat,
-      stdR.toFloat, stdG.toFloat, stdB.toFloat)
-  }
-
   def createPerImageNormalize(min: Double, max: Double, normType: Int = 32): PerImageNormalize = {
     PerImageNormalize(min, max, normType)
   }
@@ -251,6 +243,11 @@ class PythonImageFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyt
       case other => throw new IllegalArgumentException(s"Unsupported format:" +
         s" $format. Only NCHW and NHWC are supported.")
     }
+  }
+
+  def createImageMatToFloats(validHeight: Int, validWidth: Int, validChannels: Int,
+                             outKey: String, shareBuffer: Boolean = true): ImageMatToFloats = {
+    ImageMatToFloats(validChannels, validWidth, validChannels, outKey, shareBuffer)
   }
 
   def createImageHue(deltaLow: Double, deltaHigh: Double): ImageHue = {
@@ -390,5 +387,36 @@ class PythonImageFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyt
         size = jTensor.shape)
     }
     tensor
+  }
+
+  def createImageRoiNormalize(): ImageRoiNormalize = {
+    ImageRoiNormalize()
+  }
+
+  def createImageRoiHFlip(normalized: Boolean = true): ImageRoiHFlip = {
+    ImageRoiHFlip(normalized)
+  }
+
+  def createImageRoiResize(normalized: Boolean = false): ImageRoiResize = {
+    ImageRoiResize(normalized)
+  }
+
+  def createImageRoiProject(needMeetCenterConstraint: Boolean = true): ImageRoiProject = {
+    ImageRoiProject(needMeetCenterConstraint)
+  }
+
+  def createImageRandomSampler(): ImageRandomSampler = {
+    ImageRandomSampler()
+  }
+
+  def createRoiRecordToFeature(convertLabel: Boolean = false,
+                               outKey: String = ImageFeature.bytes): RoiRecordToFeature = {
+    RoiRecordToFeature(convertLabel, outKey)
+  }
+
+  def createChainedImagePreprocessing(list: JList[ImageProcessing]): ImageProcessing = {
+    var cur = list.get(0)
+    (1 until list.size()).foreach(t => cur = cur -> list.get(t))
+    cur
   }
 }

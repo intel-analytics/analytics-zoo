@@ -32,47 +32,48 @@ import scala.collection.Iterator
  */
 class RoiRecordToFeature(convertLabel: Boolean = false, outKey: String = ImageFeature.bytes)
   extends Preprocessing[ByteRecord, ImageFeature] {
-  @transient var data: Array[Byte] = _
-  @transient var gtClasses: Tensor[Float] = _
-  @transient var gtBoxes: Tensor[Float] = _
-  val feature = new ImageFeature()
 
   override def apply(prev: Iterator[ByteRecord]): Iterator[ImageFeature] = {
-    prev.map(record => {
-      feature.clear()
-      val byteArray = record.data
-      val byteBuffer = ByteBuffer.wrap(byteArray)
-      val dataLen = byteBuffer.getInt
-      val classLen = byteBuffer.getInt
-      if (data == null || data.length < dataLen) {
-        data = new Array[Byte](dataLen)
-      }
-      System.arraycopy(byteArray, 8, data, 0, dataLen)
-      val target = if (convertLabel) {
-        if (gtBoxes == null) {
-          gtClasses = Tensor[Float]
-          gtBoxes = Tensor[Float]
+      prev.map(record => {
+        val feature = new ImageFeature()
+        var data: Array[Byte] = null
+        var gtClasses: Tensor[Float] = null
+        var gtBoxes: Tensor[Float] = null
+        feature.clear()
+        val byteArray = record.data
+        val byteBuffer = ByteBuffer.wrap(byteArray)
+        val dataLen = byteBuffer.getInt
+        val classLen = byteBuffer.getInt
+        if (data == null || data.length < dataLen) {
+          data = new Array[Byte](dataLen)
         }
-        gtClasses.resize(2, classLen / 4)
-        gtBoxes.resize(classLen / 4, 4)
-        if (classLen > 0) {
-          val gtClassesData = gtClasses.storage().array()
-          val gtClassesOffset = gtClasses.storageOffset() - 1
-          val gtBoxesData = gtBoxes.storage().array()
-          val gtBoxesOffset = gtBoxes.storageOffset() - 1
-          // label + difficult
-          bytesToFloatTensor(byteArray, 8 + dataLen, classLen * 2, gtClassesData, gtClassesOffset)
-          bytesToFloatTensor(byteArray, 8 + dataLen + classLen * 2, classLen * 4,
-            gtBoxesData, gtBoxesOffset)
-        }
+        System.arraycopy(byteArray, 8, data, 0, dataLen)
+        val target = if (convertLabel) {
+          if (gtBoxes == null) {
+            gtClasses = Tensor[Float]
+            gtBoxes = Tensor[Float]
+          }
+          gtClasses.resize(2, classLen / 4)
+          gtBoxes.resize(classLen / 4, 4)
+          if (classLen > 0) {
+            val gtClassesData = gtClasses.storage().array()
+            val gtClassesOffset = gtClasses.storageOffset() - 1
+            val gtBoxesData = gtBoxes.storage().array()
+            val gtBoxesOffset = gtBoxes.storageOffset() - 1
+            // label + difficult
+            bytesToFloatTensor(byteArray, 8 + dataLen, classLen * 2, gtClassesData, gtClassesOffset)
+            bytesToFloatTensor(byteArray, 8 + dataLen + classLen * 2, classLen * 4,
+              gtBoxesData, gtBoxesOffset)
+          }
 
-        RoiLabel(gtClasses, gtBoxes)
-      } else null
-      feature(outKey) = data
-      feature(ImageFeature.uri) = record.path
-      feature(ImageFeature.label) = target
-      feature
-    })
+          RoiLabel(gtClasses, gtBoxes)
+        } else null
+        feature(outKey) = data
+        feature(ImageFeature.uri) = record.path
+        feature(ImageFeature.label) = target
+        feature
+      })
+
   }
 
 

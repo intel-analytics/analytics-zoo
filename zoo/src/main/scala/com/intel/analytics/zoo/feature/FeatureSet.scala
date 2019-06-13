@@ -20,8 +20,10 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import com.intel.analytics.bigdl.DataSet
 import com.intel.analytics.bigdl.dataset.{AbstractDataSet, DistributedDataSet, Transformer}
+import com.intel.analytics.bigdl.transform.vision.image.ImageFeature
 import com.intel.analytics.bigdl.utils.RandomGenerator
 import com.intel.analytics.zoo.feature.common.{ArrayLike, ArrayLikeWrapper}
+import com.intel.analytics.zoo.feature.image.{DistributedImageSet, ImageSet, LocalImageSet}
 import com.intel.analytics.zoo.feature.pmem._
 import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.EngineRef
 import org.apache.spark.rdd.RDD
@@ -330,6 +332,17 @@ object FeatureSet {
     } else {
       throw new IllegalArgumentException(
         s"DataStrategy ${dataStrategy} is not supported at the moment")
+    }
+  }
+
+  def imageSet(imageSet: ImageSet,
+               memoryType: MemoryType = DRAM,
+               dataStrategy: DataStrategy = PARTITIONED): DistributedFeatureSet[ImageFeature] = {
+    imageSet match {
+      case distributedImageSet: DistributedImageSet =>
+        rdd[ImageFeature](distributedImageSet.rdd, memoryType, dataStrategy)
+      case localImageSet: LocalImageSet => throw new IllegalArgumentException(
+        s"LocalImageSet is not accepted at the moment")
     }
   }
 }

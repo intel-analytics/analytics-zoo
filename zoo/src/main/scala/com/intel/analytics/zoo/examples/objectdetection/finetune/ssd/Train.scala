@@ -164,7 +164,7 @@ object Train {
     }
 
     estimator.train(trainSet = trainSet.asInstanceOf[FeatureSet[MiniBatch[Float]]],
-      criterion = new MultiBoxLoss[Float](MultiBoxLossParam(nClasses = classes.length)),
+      criterion = MultiBoxLoss[Float](MultiBoxLossParam(nClasses = classes.length)),
       endTrigger = Some(Trigger.maxEpoch(param.maxEpoch)),
       checkPointTrigger = Some(Trigger.everyEpoch),
       validationSet = valSet.asInstanceOf[FeatureSet[MiniBatch[Float]]],

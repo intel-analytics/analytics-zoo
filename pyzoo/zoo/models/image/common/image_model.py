@@ -27,9 +27,6 @@ class ImageModel(ZooModel):
     """
     The basic class for image model.
     """
-    def __init__(self, bigdl_type="float"):
-        super(ImageModel, self).__init__(None, bigdl_type)
-
     def predict_image_set(self, image, configure=None):
         res = callBigDlFunc(self.bigdl_type, "imageModelPredict", self.value,
                             image, configure)

@@ -178,6 +178,24 @@ object ModuleUtil {
   }
 
   /**
+    * Set Scale of gradientBias to the layers except specified layer,
+    * their input gradient are not computed.
+    *
+    * @param model the graph model
+    * @param b the value of the scale of gradientBias
+    * @param exclude exclude layer name
+    * @tparam T
+    */
+  def setScaleB[@specialized(Float, Double) T: ClassTag](model: Graph[T],
+                                                         b: Double,
+                                                         exclude: String): Unit = {
+    val scaleModules = model.modules
+      .filterNot(_.getName.endsWith(exclude))
+      .toArray
+    scaleModules.foreach(m => m.setScaleB(b))
+  }
+
+  /**
    * select results (confs || locs || priorboxes), use JoinTable to concat them into one tensor
    * @param start start index of the result
    * @param dim dimension to join

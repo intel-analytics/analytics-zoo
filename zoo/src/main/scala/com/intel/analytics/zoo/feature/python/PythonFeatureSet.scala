@@ -22,6 +22,7 @@ import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.transform.vision.image._
 import com.intel.analytics.zoo.common.PythonZoo
 import com.intel.analytics.zoo.feature.FeatureSet
+import com.intel.analytics.zoo.feature.image.ImageSet
 import com.intel.analytics.zoo.feature.pmem.MemoryType
 import org.apache.spark.api.java.JavaRDD
 
@@ -40,6 +41,12 @@ class PythonFeatureSet[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pytho
         memoryType: String): FeatureSet[ImageFeature] = {
     require(imageFrame.isDistributed(), "Only support distributed ImageFrame")
     FeatureSet.rdd(imageFrame.toDistributed().rdd, MemoryType.fromString(memoryType))
+  }
+
+  def createFeatureSetFromImageSet(imageSet: ImageSet,
+                                   memoryType: String): FeatureSet[ImageFeature] = {
+    require(imageSet.isDistributed(), "Only support distributed ImageFrame")
+    FeatureSet.imageSet(imageSet, MemoryType.fromString(memoryType))
   }
 
   def createFeatureSetFromRDD(

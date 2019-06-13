@@ -16,7 +16,7 @@
 
 package com.intel.analytics.zoo.models.image.objectdetection.ssd
 
-import com.intel.analytics.zoo.feature.{DistributedFeatureSet, FeatureSet}
+import com.intel.analytics.zoo.feature.FeatureSet
 import com.intel.analytics.zoo.feature.image._
 import com.intel.analytics.zoo.feature.image.roi.RoiRecordToFeature
 import com.intel.analytics.zoo.models.image.objectdetection.common.dataset.Imdb

@@ -86,10 +86,12 @@ spark-submit \
     --conf "spark.serializer=org.apache.spark.serializer.JavaSerializer" \
     --class com.intel.analytics.zoo.examples.objectdetection.finetune.ssd.Train \
     ${ZOO_JAR_PATH} --resolution 300 --model analytics-zoo_ssd-vgg16-300x300_PASCAL_0.1.0.model \
-    --class xxx -f xxx -v xxx -e 1 -b 8 --modelDir folder -l 0.0001 --learningRateDecay 0.0005
+    --dataset pascal --class xxx -f xxx -v xxx -e 1 -b 8 --modelDir folder -l 0.0001 --learningRateDecay 0.0005 \
+    -p 4 --saveModelPath xxx --overwriteModel
 ```
 * resolution: input resolution 300 or 512
 * model: model snapshot location
+* dataset: which dataset of the model will be used
 * class : class file which contains object class names
 * f: url of hdfs or local folder store the train hadoop sequence image files.
 * v: url of hdfs or local folder store the validation hadoop sequence image files.
@@ -98,3 +100,8 @@ spark-submit \
 * modelDir: checkpoint directory, and related summary director
 * l: learning rate
 * learningRateDecay: learning rate decay
+* p: number of partitions when data is read to spark
+* saveModelPath: where to save trained model. Default location is ./final.model
+* overwriteModel: whether to overwrite model file. 
+                  When use this option, the model file will be overwritten.
+                  Otherwise, save to same place would get error.
