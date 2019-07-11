@@ -291,8 +291,10 @@
         </dependency>
         <dependency>
             <groupId>com.intel.analytics.bigdl</groupId>
-            <artifactId>${bigdl.artifactId}</artifactId>
-            <version>${bigdl.version}</version>
+            <!--<artifactId>${bigdl.artifactId}</artifactId>-->
+            <!--<version>${bigdl.version}</version>-->
+            <artifactId>bigdl</artifactId>
+            <version>0.8.0</version>
             <scope>${bigdl-scope}</scope>
         </dependency>
         <dependency>

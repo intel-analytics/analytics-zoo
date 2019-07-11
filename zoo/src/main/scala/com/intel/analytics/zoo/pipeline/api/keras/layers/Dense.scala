@@ -16,8 +16,9 @@
 
 package com.intel.analytics.zoo.pipeline.api.keras.layers
 
-import com.intel.analytics.bigdl.nn.keras.{KerasLayer, Dense => BigDLDense}
-import com.intel.analytics.bigdl.nn.{InitializationMethod, Xavier}
+import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity}
+import com.intel.analytics.bigdl.nn.keras.{KerasLayer, Sequential, Dense => BigDLDense}
+import com.intel.analytics.bigdl.nn._
 import com.intel.analytics.bigdl.optim.Regularizer
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
@@ -59,6 +60,23 @@ class Dense[T: ClassTag](
   override val inputShape: Shape = null)(implicit ev: TensorNumeric[T])
   extends BigDLDense[T](outputDim, init, activation, wRegularizer, bRegularizer, bias,
     inputShape) with Net {
+
+//  override def doBuild(inputShape: Shape): AbstractModule[Tensor[T], Tensor[T], T] = {
+//    val inputShapeList = inputShape.toSingle()
+//    val layer = Linear(
+//      inputSize = inputShapeList.last,
+//      outputSize = outputDim,
+//      withBias = bias,
+//      wRegularizer = wRegularizer,
+//      bRegularizer = bRegularizer)
+//    layer.setInitMethod(weightInitMethod = init, biasInitMethod = Zeros)
+//
+//    val wrapper = Sequential[T]()
+//    wrapper.add(new KerasLayerWrapper[T](layer.asInstanceOf[AbstractModule[Activity, Activity, T]],
+//      inputShape))
+//    if (activation != null) wrapper.add(activation)
+//    wrapper.asInstanceOf[AbstractModule[Tensor[T], Tensor[T], T]]
+//  }
 }
 
 object Dense {
@@ -72,8 +90,10 @@ object Dense {
     bias: Boolean = true,
     inputShape: Shape = null)(implicit ev: TensorNumeric[T]): Dense[T] = {
     val initValue = KerasUtils.getInitMethod(init, limits)
+    val t = if (activation == null) null else SoftMax[T]()
     new Dense[T](outputDim, initValue,
-      KerasUtils.getKerasActivation(activation),
+//      KerasUtils.getKerasActivation(activation),
+      t,
       wRegularizer, bRegularizer, bias, inputShape)
   }
 }

@@ -72,6 +72,65 @@ class AdamWeightDecay[@specialized(Float, Double) T: ClassTag](
    * @param parameter the initial point
    * @return the new x vector and the function list {fx}, evaluated before the update
    */
+//  override def optimize(feval: (Tensor[T]) => (T, Tensor[T]),
+//                        parameter: Tensor[T]): (Tensor[T], Array[T]) = {
+//    if (buffer == null) buffer = Tensor[T]()
+//    val beta1 = this.beta1
+//    val beta2 = this.beta2
+//    val eps = this.epsilon
+//
+//    val (fx, dfdx) = feval(parameter)
+//
+//    val state = SGDRef.getstate(this)
+//    var timestep = state.getOrElse[Double]("evalCounter", 0.0)
+//
+//    if (!state.get[Tensor[T]]("s").isDefined) {
+//      state("s") = Tensor[T]().resizeAs(dfdx).zero()
+//      state("r") = Tensor[T]().resizeAs(dfdx).zero()
+//      state("denom") = Tensor[T]().resizeAs(dfdx).zero()
+//    }
+//
+//    val (_s, _r, _denom) = (state.get[Tensor[T]]("s").get, state.get[Tensor[T]]("r").get,
+//      state.get[Tensor[T]]("denom").get.resizeAs(dfdx))
+//
+//    /**
+//     * m_t = beta_1 * m_t-1 + (1 - beta_1) * g_t
+//     * v_t = beta_2 * v_t-1 + (1 - beta_2) * g_t * g_t
+//     */
+//    _s.mul(ev.fromType[Double](beta1)).add(ev.fromType[Double](1-beta1), dfdx)
+//    buffer.resizeAs(dfdx).cmul(dfdx, dfdx)
+//    _r.mul(ev.fromType[Double](beta2)).add(ev.fromType[Double](1-beta2), buffer)
+//    _denom.sqrt(_r)
+//
+//    // used as MKL.axpy: 1 * a + y = y, and fill buffer with one
+//    buffer.fill(ev.one)
+//    _denom.add(ev.fromType(eps), buffer)
+//
+////    val update = _s.clone.div(_denom)
+//val update = _s / _denom
+//
+//    if(weightDecay > 0) {
+////      update.add(parameter.clone().mul(ev.fromType(weightDecay)))
+//      update.add(parameter * ev.fromType(weightDecay))
+//    }
+//
+//    val currentLR = updateHyperParameter(timestep)
+//    val lrScheduled = if (total != -1) {
+//      currentLR.toDouble * warmupMethod(timestep / total, warmupPortion)
+//    } else currentLR
+//
+//    val updateLR = update.mul(ev.fromType(lrScheduled))
+//    parameter.add(-updateLR)
+//
+//    timestep = timestep + 1
+//    state("evalCounter") = timestep // A tmp tensor to hold the sqrt(v) + epsilon
+//    state("s") = _s // 1st moment variables
+//    state("r") = _r // 2nd moment variables
+//    state("denom") = _denom // 3nd moment variables
+//
+//    (parameter, Array(fx))
+//  }
+
   override def optimize(feval: (Tensor[T]) => (T, Tensor[T]),
                         parameter: Tensor[T]): (Tensor[T], Array[T]) = {
     if (buffer == null) buffer = Tensor[T]()
@@ -94,9 +153,9 @@ class AdamWeightDecay[@specialized(Float, Double) T: ClassTag](
       state.get[Tensor[T]]("denom").get.resizeAs(dfdx))
 
     /**
-     * m_t = beta_1 * m_t-1 + (1 - beta_1) * g_t
-     * v_t = beta_2 * v_t-1 + (1 - beta_2) * g_t * g_t
-     */
+      * m_t = beta_1 * m_t-1 + (1 - beta_1) * g_t
+      * v_t = beta_2 * v_t-1 + (1 - beta_2) * g_t * g_t
+      */
     _s.mul(ev.fromType[Double](beta1)).add(ev.fromType[Double](1-beta1), dfdx)
     buffer.resizeAs(dfdx).cmul(dfdx, dfdx)
     _r.mul(ev.fromType[Double](beta2)).add(ev.fromType[Double](1-beta2), buffer)
@@ -106,19 +165,28 @@ class AdamWeightDecay[@specialized(Float, Double) T: ClassTag](
     buffer.fill(ev.one)
     _denom.add(ev.fromType(eps), buffer)
 
-    val update = _s / (_denom)
-
-    if(weightDecay > 0) {
-      update.add(parameter * (ev.fromType(weightDecay)))
-    }
-
     val currentLR = updateHyperParameter(timestep)
     val lrScheduled = if (total != -1) {
       currentLR.toDouble * warmupMethod(timestep / total, warmupPortion)
     } else currentLR
 
-    val updateLR = update.mul(ev.fromType(lrScheduled))
-    parameter.add(-updateLR)
+    //    val update = _s / (_denom)
+    //
+    //    if(weightDecay > 0) {
+    //      update.add(parameter * (ev.fromType(weightDecay)))
+    //    }
+    //
+    //    val updateLR = update.mul(ev.fromType(lrScheduled))
+    //    parameter.add(-updateLR)
+
+    if (weightDecay > 0) {
+      val t = parameter * ev.fromType((-lrScheduled) * weightDecay)
+      parameter.addcdiv(ev.fromType(-lrScheduled), _s, _denom)
+      parameter.add(t)
+    } else {
+      parameter.addcdiv(ev.fromType(-lrScheduled), _s, _denom)
+    }
+
 
     timestep = timestep + 1
     state("evalCounter") = timestep // A tmp tensor to hold the sqrt(v) + epsilon

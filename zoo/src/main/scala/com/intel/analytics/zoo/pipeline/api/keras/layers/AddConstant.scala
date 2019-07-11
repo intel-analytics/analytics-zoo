@@ -40,12 +40,13 @@ import scala.reflect.ClassTag
  */
 class AddConstant[T: ClassTag](
     val constant: Double,
-    val inputShape: Shape = null)(implicit ev: TensorNumeric[T])
+    val inputShape: Shape = null,
+    val inplace: Boolean = false)(implicit ev: TensorNumeric[T])
   extends KerasLayer[Tensor[T], Tensor[T], T](KerasUtils.addBatch(inputShape))
     with IdentityOutputShape with Net {
 
   override def doBuild(inputShape: Shape): AbstractModule[Tensor[T], Tensor[T], T] = {
-    val layer = com.intel.analytics.bigdl.nn.AddConstant(constant)
+    val layer = com.intel.analytics.bigdl.nn.AddConstant(constant, inplace)
     layer.asInstanceOf[AbstractModule[Tensor[T], Tensor[T], T]]
   }
 }
@@ -53,7 +54,8 @@ class AddConstant[T: ClassTag](
 object AddConstant {
   def apply[@specialized(Float, Double) T: ClassTag](
     constant: Double,
-    inputShape: Shape = null)(implicit ev: TensorNumeric[T]): AddConstant[T] = {
-    new AddConstant[T](constant, inputShape)
+    inputShape: Shape = null,
+    inplace: Boolean = true)(implicit ev: TensorNumeric[T]): AddConstant[T] = {
+    new AddConstant[T](constant, inputShape, inplace)
   }
 }

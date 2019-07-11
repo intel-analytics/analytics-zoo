@@ -40,12 +40,13 @@ import scala.reflect.ClassTag
  */
 class MulConstant[T: ClassTag](
     val constant: Double,
-    val inputShape: Shape = null)(implicit ev: TensorNumeric[T])
+    val inputShape: Shape = null,
+    val inplace: Boolean = false)(implicit ev: TensorNumeric[T])
   extends KerasLayer[Tensor[T], Tensor[T], T](KerasUtils.addBatch(inputShape))
   with IdentityOutputShape with Net {
 
   override def doBuild(inputShape: Shape): AbstractModule[Tensor[T], Tensor[T], T] = {
-    val layer = com.intel.analytics.bigdl.nn.MulConstant(constant)
+    val layer = com.intel.analytics.bigdl.nn.MulConstant(constant, inplace)
     layer.asInstanceOf[AbstractModule[Tensor[T], Tensor[T], T]]
   }
 }
@@ -53,7 +54,8 @@ class MulConstant[T: ClassTag](
 object MulConstant {
   def apply[@specialized(Float, Double) T: ClassTag](
     constant: Double,
-    inputShape: Shape = null)(implicit ev: TensorNumeric[T]): MulConstant[T] = {
-    new MulConstant[T](constant, inputShape)
+    inputShape: Shape = null,
+    inplace: Boolean = false)(implicit ev: TensorNumeric[T]): MulConstant[T] = {
+    new MulConstant[T](constant, inputShape, inplace)
   }
 }

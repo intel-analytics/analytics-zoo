@@ -22,6 +22,7 @@ import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.utils.Shape
 import com.intel.analytics.zoo.pipeline.api.Net
+import com.intel.analytics.zoo.pipeline.api.keras.layers.internal.InternalNarrow
 import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.KerasUtils
 
 import scala.reflect.ClassTag
@@ -56,7 +57,8 @@ class Narrow[T: ClassTag](
     val dim: Int,
     val offset: Int,
     val length: Int = 1,
-    val inputShape: Shape = null)(implicit ev: TensorNumeric[T])
+    val inputShape: Shape = null,
+    val inplace: Boolean = false)(implicit ev: TensorNumeric[T])
   extends KerasLayer[Tensor[T], Tensor[T], T](KerasUtils.addBatch(inputShape)) with Net {
 
   private def getPositiveDimAndLength(inputShape: Shape): (Int, Int) = {
@@ -84,7 +86,7 @@ class Narrow[T: ClassTag](
 
   override def doBuild(inputShape: Shape): AbstractModule[Tensor[T], Tensor[T], T] = {
     val (positiveDim, positiveLength) = getPositiveDimAndLength(inputShape)
-    val layer = com.intel.analytics.bigdl.nn.Narrow(positiveDim + 1, offset + 1, positiveLength)
+    val layer = new InternalNarrow(positiveDim + 1, offset + 1, positiveLength, inplace)
     layer.asInstanceOf[AbstractModule[Tensor[T], Tensor[T], T]]
   }
 }
@@ -94,7 +96,8 @@ object Narrow {
     dim: Int,
     offset: Int,
     length: Int = 1,
-    inputShape: Shape = null)(implicit ev: TensorNumeric[T]): Narrow[T] = {
-    new Narrow[T](dim, offset, length, inputShape)
+    inputShape: Shape = null,
+    inplace: Boolean = false)(implicit ev: TensorNumeric[T]): Narrow[T] = {
+    new Narrow[T](dim, offset, length, inputShape, inplace)
   }
 }

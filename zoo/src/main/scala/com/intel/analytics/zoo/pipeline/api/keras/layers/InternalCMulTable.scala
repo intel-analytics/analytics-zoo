@@ -25,7 +25,7 @@ import com.intel.analytics.bigdl.utils.{T, Table}
 import scala.reflect.ClassTag
 
 private[zoo] class InternalCMulTable[T: ClassTag]()
-  (implicit ev: TensorNumeric[T]) extends CMulTable[T] {
+  (implicit ev: TensorNumeric[T]) extends CMulTable[T]() {
   private var expandLayer: AbstractModule[Tensor[T], Tensor[T], T] = null
 
   override def updateOutput(input: Table): Tensor[T] = {

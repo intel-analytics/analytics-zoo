@@ -371,3 +371,4 @@ class BERT(TransformerLayer):
         model = Layer(jvalue=jlayer, bigdl_type=bigdl_type)
         model.__class__ = BERT
         return model
+

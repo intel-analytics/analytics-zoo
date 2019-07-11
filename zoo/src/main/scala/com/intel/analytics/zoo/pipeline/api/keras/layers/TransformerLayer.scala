@@ -130,10 +130,15 @@ private[layers] class TransformerLayer[T: ClassTag](
 
   def multiHeadSelfAttention(x: Variable[T], hiddenSize: Int,
     attention_mask: Variable[T] = null): Variable[T] = {
-    val c = projectionLayer(hiddenSize * 3).from(x)
-    val query = c.slice(2, 0, hiddenSize)
-    val key = c.slice(2, hiddenSize, hiddenSize)
-    val value = c.slice(2, hiddenSize * 2, hiddenSize)
+//    val c = projectionLayer(hiddenSize * 3).from(x)
+//    val query = c.slice(2, 0, hiddenSize)
+//    val key = c.slice(2, hiddenSize, hiddenSize)
+//    val value = c.slice(2, hiddenSize * 2, hiddenSize)
+    val query = projectionLayer(hiddenSize).from(x)
+    val key = projectionLayer(hiddenSize).from(x)
+    val value = projectionLayer(hiddenSize).from(x)
+
+
     val q = splitHeads(query, nHead)
     val k = splitHeads(key, nHead, k = true)
     val v = splitHeads(value, nHead)
@@ -160,11 +165,14 @@ private[layers] class TransformerLayer[T: ClassTag](
     if (!bidirectional) {
       w = w * maskValue + (maskValue * (-1) + 1) * -1e9
     }
+
     if (attention_mask != null) {
       w = w + attention_mask
     }
+//    var w = AutoGrad.attn(q, k, attention_mask)
 
-    w = Activation[Float]("softmax").from(w)
+//    w = Activation[Float]("softmax").from(w)
+    w = com.intel.analytics.zoo.pipeline.api.keras.layers.SoftMax[T]().from(w)
     w = Dropout(attnPDrop).from(w)
 
     AutoGrad.mm(w, v)
@@ -192,7 +200,9 @@ private[layers] class TransformerLayer[T: ClassTag](
   def pooler(x: Variable[T], hiddenSize: Int): Variable[T] = {
     val firstToken = Select(1, 0).from(x)
     val poolerOutput = Dense(hiddenSize).from(firstToken)
-    Activation[Float]("tanh").from(poolerOutput)
+//    Activation[Float]("tanh").from(poolerOutput)
+    new KerasLayerWrapper[T](Tanh[T]()
+      .asInstanceOf[AbstractModule[Activity, Activity, T]]).from(poolerOutput)
   }
 }
 

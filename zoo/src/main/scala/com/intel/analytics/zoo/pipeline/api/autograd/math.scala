@@ -308,6 +308,16 @@ object AutoGrad {
     } else kmm.from(xx, yy)
   }
 
+  def attn[T: ClassTag](
+    q: Variable[T],
+    k: Variable[T],
+//    v: Variable[T],
+//    scale: Boolean = false,
+    attention_mask: Variable[T])(implicit ev: TensorNumeric[T]): Variable[T] = {
+    val kattn = new KerasLayerWrapper[T](new InternalAttn[T]().asInstanceOf[AbstractModule[Activity, Activity, T]])
+    kattn.from(q, k, attention_mask)
+  }
+
   /**
    * Normalizes a tensor wrt the L2 norm alongside the specified axis.
    *
@@ -433,6 +443,7 @@ class Variable[T: ClassTag] private[zoo] (private[zoo] var node: ModuleNode[T],
   }
 
   def +(a: Double): Variable[T] = {
+//    Variable(AddConstant[T](a, inplace = true).inputs(Array(this.node)))
     Variable(AddConstant[T](a).inputs(Array(this.node)))
   }
 
@@ -520,7 +531,8 @@ class Variable[T: ClassTag] private[zoo] (private[zoo] var node: ModuleNode[T],
   def slice(dim: Int, startIndex: Int, length: Int): Variable[T] = {
     val layer = Narrow[T](dim = dim,
       offset = startIndex,
-      length = length)
+      length = length,
+      inplace = true)
     Variable(layer.inputs(this.node))
   }
 
