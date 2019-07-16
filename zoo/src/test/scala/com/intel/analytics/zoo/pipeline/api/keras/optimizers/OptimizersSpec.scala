@@ -17,9 +17,10 @@ package com.intel.analytics.zoo.pipeline.api.keras.optimizers
 
 import com.intel.analytics.bigdl.nn.{BCECriterion, Linear, Sequential, Sigmoid}
 import com.intel.analytics.bigdl.optim.SGD._
+import com.intel.analytics.bigdl.optim.{Adagrad, SparseAdagrad}
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric.NumericFloat
-import com.intel.analytics.bigdl.utils.Engine
+import com.intel.analytics.bigdl.utils.{Engine, RandomGenerator, T}
 import com.intel.analytics.bigdl.utils.RandomGenerator.RNG
 import com.intel.analytics.zoo.common.NNContext
 import com.intel.analytics.zoo.pipeline.nnframes.{NNClassifier, NNClassifierModel, NNEstimatorSpec}
@@ -113,5 +114,26 @@ class OptimizersSpec extends FlatSpec with Matchers with BeforeAndAfter {
     optm.optimize(rosenBrock, w)
 
     require(w.almostEqual(expectW, 2e-6))
+  }
+
+  "SparseAdagrad" should "generate correct result" in {
+    RandomGenerator.RNG.setSeed(10)
+    val grad = Tensor[Float](3, 10).setValue(1, 1, 0.1457f).setValue(1, 6, 0.2987f)
+      .setValue(1, 9, 0.1693f)
+    val param = Tensor[Float](3, 10).rand()
+    val adagrad = new Adagrad[Float](0.1, 5e-7)
+
+    val sparseAdagrad = new SparseAdagrad[Float](0.1, 5e-7)
+    val sGrad = Tensor.sparse(grad)
+    val sParam = param.clone()
+
+    for (i <- 1 to 5) {
+      adagrad.optimize(_ => (1f, grad), param)
+    }
+
+    for (i <- 1 to 5) {
+      sparseAdagrad.optimize(_ => (1f, sGrad), sParam)
+    }
+    require(param.almostEqual(sParam, 1e-8) == true)
   }
 }

@@ -28,6 +28,7 @@ import com.intel.analytics.bigdl.nn.keras.{KerasLayer, KerasLayerSerializable}
 import com.intel.analytics.bigdl.nn.{Container, Graph, StaticGraph, Sequential => TSequential}
 import com.intel.analytics.bigdl.optim.DistriOptimizer.Cache
 import com.intel.analytics.bigdl.optim._
+import com.intel.analytics.bigdl.parameters.SparseParameterProcessor
 import com.intel.analytics.bigdl.serialization.Bigdl.BigDLModule
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.utils._
@@ -949,7 +950,7 @@ private[zoo] class InternalLocalOptimizer[T: ClassTag] (
   }
 }
 
-private[zoo] class InternalDistriOptimizer[T: ClassTag] (
+class InternalDistriOptimizer[T: ClassTag] (
     _model: Module[T],
     _dataset: DistributedDataSet[MiniBatch[T]],
     _criterion: Criterion[T])
@@ -957,6 +958,14 @@ private[zoo] class InternalDistriOptimizer[T: ClassTag] (
   with AbstractEstimator[T]{
   import InternalDistriOptimizer.logger
   protected var checkpointDir: Option[String] = None
+
+  var sparseParameterProcessor: SparseParameterProcessor[T] = null
+
+  def setSparseParameterProcessor(optimMethods: OptimMethod[T]): this.type = {
+    sparseParameterProcessor = new SparseParameterProcessor[T](optimMethods)
+    parameterProcessors.append(sparseParameterProcessor)
+    this
+  }
 
   def setCheckpointDir(path: Option[String]): this.type = {
     if (path.isDefined) {
@@ -1007,6 +1016,14 @@ private[zoo] class InternalDistriOptimizer[T: ClassTag] (
     }
     this.optimize()
     this
+  }
+
+  override def optimize(): Module[T] = {
+    val model = super.optimize()
+    if (sparseParameterProcessor != null) {
+      sparseParameterProcessor.getSparseParameters(model)
+    }
+    model
   }
 
   override def evaluate(

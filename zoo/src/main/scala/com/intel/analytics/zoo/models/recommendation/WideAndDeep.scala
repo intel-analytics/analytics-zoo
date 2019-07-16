@@ -18,6 +18,7 @@ package com.intel.analytics.zoo.models.recommendation
 
 import com.intel.analytics.bigdl.Module
 import com.intel.analytics.bigdl.nn.Graph.ModuleNode
+import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, SparseAbstractModule}
 import com.intel.analytics.bigdl.nn.{CAddTable, Concat, Linear, LogSoftMax
   , LookupTable, LookupTableSparse, ParallelTable, ReLU, Sequential, Zeros}
 import com.intel.analytics.bigdl.nn.abstractnn.AbstractModule

@@ -16,11 +16,11 @@
 
 package com.intel.analytics.zoo.pipeline.api.keras.layers
 
-import com.intel.analytics.bigdl.nn.abstractnn.AbstractModule
+import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, SparseAbstractModule}
 import com.intel.analytics.bigdl.nn.keras.KerasLayer
-import com.intel.analytics.bigdl.nn.{InferReshape, InitializationMethod, SparseLinear, Xavier, Zeros, Sequential => TSequential}
+import com.intel.analytics.bigdl.nn.{ErrorInfo, InferReshape, InitializationMethod, InternalSparseLinear, SparseLinear, Xavier, Zeros, Sequential => TSequential}
 import com.intel.analytics.bigdl.optim.Regularizer
-import com.intel.analytics.bigdl.tensor.Tensor
+import com.intel.analytics.bigdl.tensor.{SparseTensorUtils, Tensor}
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.utils.Shape
 import com.intel.analytics.zoo.pipeline.api.Net
@@ -85,11 +85,15 @@ class SparseDense[T: ClassTag](
 
   override def doBuild(inputShape: Shape): AbstractModule[Tensor[T], Tensor[T], T] = {
     val inputShapeList = inputShape.toSingle()
-    val layer = SparseLinear[T](inputSize = inputShape.toSingle().last,
-      outputSize = outputDim, withBias = bias, wRegularizer = wRegularizer,
-      bRegularizer = bRegularizer, backwardStart = backwardStart,
-      backwardLength = backwardLength, initWeight = initWeight,
-      initBias = initBias, initGradWeight = initGradWeight, initGradBias = initGradBias)
+//    val layer = SparseLinear[T](inputSize = inputShape.toSingle().last,
+//      outputSize = outputDim, withBias = bias, wRegularizer = wRegularizer,
+//      bRegularizer = bRegularizer, backwardStart = backwardStart,
+//      backwardLength = backwardLength, initWeight = initWeight,
+//      initBias = initBias, initGradWeight = initGradWeight, initGradBias = initGradBias)
+val layer = InternalSparseLinear[T](inputSize = inputShape.toSingle().last,
+  outputSize = outputDim, withBias = bias, backwardStart = backwardStart,
+  backwardLength = backwardLength, initWeight = initWeight,
+  initBias = initBias)
     layer.setInitMethod(weightInitMethod = init, biasInitMethod = Zeros)
 
     var torchLayer: AbstractModule[Tensor[T], Tensor[T], T] = layer

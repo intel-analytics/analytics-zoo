@@ -17,8 +17,9 @@
 package com.intel.analytics.zoo.models.common
 
 import com.intel.analytics.bigdl.dataset.Sample
-import com.intel.analytics.bigdl.nn.{Container, Module}
-import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity}
+import com.intel.analytics.bigdl.nn.{Container, Module, StaticGraph}
+import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity, SparseAbstractModule}
+import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.zoo.pipeline.api.keras.layers.WordEmbedding
 import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.KerasUtils
@@ -26,6 +27,7 @@ import com.intel.analytics.zoo.pipeline.api.keras.models.{KerasNet, Model, Seque
 import com.intel.analytics.zoo.pipeline.api.net.GraphNet
 import org.apache.spark.rdd.RDD
 
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 /**
@@ -36,7 +38,7 @@ import scala.reflect.ClassTag
  * @tparam T Numeric type of parameter(e.g. weight, bias). Only support float/double now.
  */
 abstract class ZooModel[A <: Activity: ClassTag, B <: Activity: ClassTag, T: ClassTag]
-(implicit ev: TensorNumeric[T]) extends Container[A, B, T] {
+(implicit ev: TensorNumeric[T]) extends Container[A, B, T] with SparseAbstractModule[T] {
 
   /**
    * Override this method to define a model.
@@ -53,6 +55,28 @@ abstract class ZooModel[A <: Activity: ClassTag, B <: Activity: ClassTag, T: Cla
     require(modules.length == 1,
       s"There should be exactly one model but found ${modules.length} models")
     modules(0).asInstanceOf[AbstractModule[A, B, T]]
+  }
+
+  override def sparseParameters(): (Array[Tensor[T]], Array[Tensor[T]]) = {
+    val weights = new ArrayBuffer[Tensor[T]]()
+    val gradWeights = new ArrayBuffer[Tensor[T]]()
+    sparseParameters(modules(0), weights, gradWeights)
+
+    (weights.toArray, gradWeights.toArray)
+  }
+
+  private def sparseParameters(m: AbstractModule[Activity, Activity, T],
+    weights: ArrayBuffer[Tensor[T]], gradW: ArrayBuffer[Tensor[T]]): Unit = {
+    if (m.isInstanceOf[Container[Activity, Activity, T]]) {
+      m.asInstanceOf[Container[Activity, Activity, T]].modules
+        .foreach(sparseParameters(_, weights, gradW))
+    } else if (m.isInstanceOf[SparseAbstractModule[T]]) {
+      val params = m.asInstanceOf[SparseAbstractModule[T]].sparseParameters()
+      if (params != null) {
+        if (params._1 != null) params._1.foreach(weights += _)
+        if (params._2 != null) params._2.foreach(gradW += _)
+      }
+    }
   }
 
   def build(): this.type = {

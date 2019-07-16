@@ -18,6 +18,7 @@ package com.intel.analytics.zoo.pipeline.estimator
 import com.intel.analytics.bigdl.{Criterion, Module}
 import com.intel.analytics.bigdl.dataset.MiniBatch
 import com.intel.analytics.bigdl.optim._
+import com.intel.analytics.bigdl.parameters.SparseParameterProcessor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.zoo.feature.{DistributedFeatureSet, FeatureSet}
 import com.intel.analytics.zoo.pipeline.api.keras.models.InternalDistriOptimizer
@@ -99,6 +100,7 @@ class Estimator[T: ClassTag] private[zoo](
   def setGradientClippingByL2Norm(clipNorm: Double): Unit = {
     this.gradientClipping.append(L2NormClipping(clipNorm))
   }
+
   /**
    * Train model with provided trainSet and criterion.
    * The training will end until the endTrigger is triggered.
@@ -123,9 +125,15 @@ class Estimator[T: ClassTag] private[zoo](
     if (internalEstimator == null) {
       internalEstimator = trainSet match {
         case d: DistributedFeatureSet[MiniBatch[T]] =>
-          new InternalDistriOptimizer[T](model, null, criterion)
+          val optimizer = new InternalDistriOptimizer[T](model, null, criterion)
             .setCheckpointDir(modelDir)
-            .setOptimMethods(optimMethods)
+          val _opti = if (optimMethods.contains("sparse")) {
+            val sparseOptimMethod = optimMethods("sparse")
+            optimizer.setSparseParameterProcessor(sparseOptimMethod)
+            optimMethods - "sparse"
+          } else optimMethods
+          optimizer.setOptimMethods(_opti)
+          optimizer
         case _ => throw new IllegalArgumentException("Unsupported FeatureSet type.")
       }
     }

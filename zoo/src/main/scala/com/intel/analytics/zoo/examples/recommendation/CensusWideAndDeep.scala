@@ -16,11 +16,16 @@
 
 package com.intel.analytics.zoo.examples.recommendation
 
+import com.intel.analytics.bigdl._
+import com.intel.analytics.bigdl.dataset.{DataSet, Sample, SampleToMiniBatch,
+MiniBatch, DistributedDataSet}
 import com.intel.analytics.bigdl.dataset.{Sample, SampleToMiniBatch}
 import com.intel.analytics.bigdl.nn.{ClassNLLCriterion}
 import com.intel.analytics.bigdl.numeric.NumericFloat
 import com.intel.analytics.bigdl.optim._
 import com.intel.analytics.bigdl.utils.{RandomGenerator, T}
+import com.intel.analytics.bigdl.visualization.{TrainSummary, ValidationSummary}
+import com.intel.analytics.zoo.common.{NNContext}
 import com.intel.analytics.zoo.common.NNContext
 import com.intel.analytics.zoo.feature.FeatureSet
 import com.intel.analytics.zoo.models.recommendation._
@@ -29,6 +34,9 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SQLContext}
+
+import scopt.OptionParser
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 
@@ -125,7 +133,8 @@ object CensusWideAndDeep {
     } else if (modelType == "wide") {
       Map("widePart" -> new Ftrl[Float](math.min(5e-3, 1 / math.sqrt(3049))))
     } else if (modelType == "deep") {
-      Map("deepPart" -> new Adagrad[Float](0.001))
+      Map("deepPart" -> new Adagrad[Float](0.001),
+      "sparse" -> new SparseAdagrad[Float](0.001))
     } else {
       throw new IllegalArgumentException(s"Unkown modelType ${modelType}")
     }
@@ -135,6 +144,27 @@ object CensusWideAndDeep {
       sample2batch
     val validationRdds = FeatureSet.rdd(validationpairFeatureRdds.map(x => x.sample).cache()) ->
       sample2batch
+
+//    val optimizer2 = Optimizer(
+//      model = wideAndDeep,
+//      dataset = trainRdds,
+//      criterion = ClassNLLCriterion[Float]())
+//    optimizer2
+//      .setOptimMethod(optimMethod)
+//      .setValidation(Trigger.everyEpoch, validationRdds,
+//        Array(new Top1Accuracy[Float], new Loss[Float]()))
+//      .setEndWhen(Trigger.maxEpoch(maxEpoch))
+
+//    val optimizer = new ZooOptimizer[Float](wideAndDeep,
+//      trainRdds.asInstanceOf[DistributedDataSet[MiniBatch[Float]]],
+//      ClassNLLCriterion[Float]())
+//    optimizer.setSparseParameterProcessor(new SparseAdagrad[Float](0.001))
+//      .setOptimMethod(optimMethods)
+//      .setValidation(Trigger.everyEpoch, validationRdds,
+//        Array(new Top1Accuracy[Float], new Loss[Float]()))
+//      .setEndWhen(Trigger.maxEpoch(maxEpoch))
+//
+//    optimizer.optimize()
 
     val estimator = if (params.logDir.isDefined) {
       val logdir = params.logDir.get
