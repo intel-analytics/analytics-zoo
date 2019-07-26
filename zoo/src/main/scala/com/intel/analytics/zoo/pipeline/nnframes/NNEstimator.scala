@@ -150,6 +150,10 @@ private[nnframes] trait NNParams[@specialized(Float, Double) T] extends HasFeatu
 
   def getSamplePreprocessing: Preprocessing[Any, Sample[T]] = $(samplePreprocessing)
 
+  final val zeroBasedLabel = new BooleanParam(this, "zeroBasedLabel", "zeroBasedLabel")
+
+  def getZeroBasedLabel: Boolean = $(zeroBasedLabel)
+
   protected def unwrapVectorAsNecessary(colType: DataType): (Row, Int) => Any = {
     // to support both ML Vector and MLlib Vector
     if (colType.typeName.contains("vector")) {
@@ -160,6 +164,7 @@ private[nnframes] trait NNParams[@specialized(Float, Double) T] extends HasFeatu
   }
   // set default here to apply to both estimator and model
   setDefault(batchSize -> 1)
+  setDefault(zeroBasedLabel -> false)
 }
 
 /**

@@ -82,6 +82,12 @@ class PythonNNFrames[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZ
     estimator.setOptimMethod(optimMethod)
   }
 
+  def setZeroBasedLabel(
+      classifier: NNClassifier[T],
+      value: Boolean): NNClassifier[T] = {
+    classifier.setZeroBasedLabel(value)
+  }
+
   def setSamplePreprocessing(
       estimator: NNEstimator[T],
       samplePreprocessing: Preprocessing[(Any, Option[AnyVal]), Sample[T]]): NNEstimator[T] = {

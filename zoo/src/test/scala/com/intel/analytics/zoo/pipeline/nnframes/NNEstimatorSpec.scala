@@ -611,8 +611,7 @@ object NNEstimatorSpec {
     val data = (1 to numRecords)
       .map( i => Array.tabulate(weight.length)(index => rnd.nextDouble() * 2 - 1))
       .map { record =>
-        val y = record.zip(weight).map(t => t._1 * t._2).sum
-        +intercept + 0.01 * rnd.nextGaussian()
+        val y = record.zip(weight).map(t => t._1 * t._2).sum + intercept + 0.01 * rnd.nextGaussian()
         val label = if (y > 0) 2.0 else 1.0
         (record, label)
       }

@@ -46,6 +46,13 @@ class NNClassifier[T: ClassTag] private[zoo]  (
   )(implicit ev: TensorNumeric[T])
   extends NNEstimator[T](model, criterion) {
 
+  /**
+   * Set whether to use zero-based label for classification models. Default False
+   */
+  def setZeroBasedLabel(value: Boolean): this.type = {
+    set(this.zeroBasedLabel, value)
+  }
+
   override protected def wrapBigDLModel(m: Module[T]): NNClassifierModel[T] = {
     val classifierModel = new NNClassifierModel[T](m)
     val originBatchsize = classifierModel.getBatchSize
@@ -165,12 +172,20 @@ class NNClassifierModel[T: ClassTag] private[zoo] (
   }
   setDefault(threshold, 0.5)
 
+  /**
+   * Set whether to use zero-based label for classification models
+   */
+  def setZeroBasedLabel(value: Boolean): this.type = {
+    set(this.zeroBasedLabel, value)
+  }
+
   protected override def outputToPrediction(output: Tensor[T]): Any = {
+    val shift = if ($(zeroBasedLabel)) 1 else 0
     if (output.size().deep == Array(1).deep) {
       val raw = ev.toType[Double](output.toArray().head)
       if (raw > 0.5) 1.0 else 0.0
     } else {
-      ev.toType[Double](output.max(1)._2.valueAt(1))
+      ev.toType[Double](output.max(1)._2.valueAt(1)) - shift
     }
   }
 

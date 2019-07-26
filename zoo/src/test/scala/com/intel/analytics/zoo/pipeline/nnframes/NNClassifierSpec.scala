@@ -29,6 +29,7 @@ import com.intel.analytics.bigdl.utils.RandomGenerator.RNG
 import com.intel.analytics.bigdl.visualization.{TrainSummary, ValidationSummary}
 import com.intel.analytics.zoo.feature.common._
 import com.intel.analytics.zoo.feature.image._
+import com.intel.analytics.zoo.pipeline.api.keras.objectives.SparseCategoricalCrossEntropy
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.MinMaxScaler
@@ -109,6 +110,23 @@ class NNClassifierSpec extends FlatSpec with Matchers with BeforeAndAfter {
     assert(nnModel.transform(df).where("prediction=label").count() > nRecords * 0.8)
   }
 
+  "NNClassifier" should "support zero based label" in {
+    val model = new Sequential().add(Linear[Float](6, 2)).add(LogSoftMax[Float])
+    val criterion = SparseCategoricalCrossEntropy[Float]()
+    val classifier = NNClassifier(model, criterion, Array(6))
+      .setOptimMethod(new LBFGS[Float]())
+      .setLearningRate(0.1)
+      .setBatchSize(nRecords)
+      .setMaxEpoch(maxEpoch)
+      .setZeroBasedLabel(true)
+    val data = sc.parallelize(smallData.map(t => (t._1, t._2 - 1.0)))
+    val df = sqlContext.createDataFrame(data).toDF("features", "label")
+
+    val nnModel = classifier.fit(df)
+    nnModel.isInstanceOf[NNClassifierModel[_]] should be(true)
+    assert(nnModel.transform(df).where("prediction=label").count() > nRecords * 0.8)
+  }
+
   "NNClassifier" should "support model with Sigmoid" in {
     val model = new Sequential().add(Linear[Float](6, 10)).add(Linear[Float](10, 1))
       .add(Sigmoid[Float])
@@ -129,16 +147,17 @@ class NNClassifierSpec extends FlatSpec with Matchers with BeforeAndAfter {
 
   "NNClassifier" should "apply with size support different FEATURE types" in {
     val model = new Sequential().add(Linear[Float](6, 2)).add(LogSoftMax[Float])
-    val criterion = ClassNLLCriterion[Float]()
+    val criterion = SparseCategoricalCrossEntropy[Float]()
     val classifier = NNClassifier(model, criterion, Array(6))
       .setLearningRate(0.1)
       .setBatchSize(2)
       .setEndWhen(Trigger.maxIteration(2))
+      .setZeroBasedLabel(true)
 
     Array(
-      sqlContext.createDataFrame(sc.parallelize(smallData.map(p => (p._1, p._2))))
+      sqlContext.createDataFrame(sc.parallelize(smallData.map(p => (p._1, p._2 - 1))))
         .toDF("features", "label"), // Array[Double]
-      sqlContext.createDataFrame(sc.parallelize(smallData.map(p => (p._1.map(_.toFloat), p._2))))
+      sqlContext.createDataFrame(sc.parallelize(smallData.map(p => (p._1.map(_.toFloat), p._2 - 1))))
         .toDF("features", "label") // Array[Float]
       // TODO: add ML Vector when ut for Spark 2.0+ is ready
     ).foreach { df =>
@@ -212,8 +231,7 @@ class NNClassifierSpec extends FlatSpec with Matchers with BeforeAndAfter {
     val model = LeNet5(10)
 
     // init
-    val valTrans = NNClassifierModel(model, Array(28, 28))
-      .setBatchSize(4)
+    val valTrans = NNClassifierModel(model, Array(28, 28)).setBatchSize(4)
 
     val tensorBuffer = new ArrayBuffer[Data]()
     val input = Tensor[Float](10, 28, 28).apply1(e => Random.nextFloat())

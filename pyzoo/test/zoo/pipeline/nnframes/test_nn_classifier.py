@@ -25,10 +25,12 @@ from numpy.testing import assert_allclose
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import MinMaxScaler
 from pyspark.sql.types import *
+from pyspark.sql.functions import col, udf
 
 from zoo.common.nncontext import *
 from zoo.pipeline.nnframes import *
 from zoo.pipeline.api.keras.optimizers import Adam as KAdam
+from zoo.pipeline.api.keras.objectives import SparseCategoricalCrossEntropy
 from zoo.feature.common import *
 from zoo.feature.image import *
 from zoo.util.tf import *
@@ -394,6 +396,31 @@ class TestNNClassifer():
             .setLearningRate(0.2).setMaxEpoch(40)
 
         df = self.get_classifier_df()
+        nnClassifierModel = classifier.fit(df)
+        assert(isinstance(nnClassifierModel, NNClassifierModel))
+        res = nnClassifierModel.transform(df)
+        assert type(res).__name__ == 'DataFrame'
+        res.registerTempTable("nnClassifierModelDF")
+        results = self.sqlContext.table("nnClassifierModelDF")
+
+        count = results.rdd.count()
+        data = results.rdd.collect()
+
+        for i in range(count):
+            row_label = data[i][1]
+            row_prediction = data[i][2]
+            assert row_label == row_prediction
+
+    def test_nnclassifier_with_zerobasedlable(self):
+        model = Sequential().add(Linear(2, 2))
+        criterion = SparseCategoricalCrossEntropy()
+        classifier = NNClassifier(model, criterion, SeqToTensor([2])) \
+            .setBatchSize(4) \
+            .setLearningRate(0.2).setMaxEpoch(40).setZeroBasedLabel(True)
+
+        shift = udf(lambda p: p - 1, DoubleType())
+        df = self.get_classifier_df()
+
         nnClassifierModel = classifier.fit(df)
         assert(isinstance(nnClassifierModel, NNClassifierModel))
         res = nnClassifierModel.transform(df)

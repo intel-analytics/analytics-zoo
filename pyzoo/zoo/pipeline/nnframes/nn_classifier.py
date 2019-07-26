@@ -98,6 +98,28 @@ class HasOptimMethod:
         return self.optimMethod
 
 
+class HasZeroBasedLabel:
+
+    def __init__(self):
+        super(HasZeroBasedLabel, self).__init__()
+        self.zeroBasedLabel = False
+
+    def setZeroBasedLabel(self, val):
+        """
+        whether to use zero based prediction in NNClassifierModel.
+        """
+        pythonBigDL_method_name = "setZeroBasedLabel"
+        callBigDlFunc(self.bigdl_type, pythonBigDL_method_name, self.value, val)
+        self.zeroBasedLabel = val
+        return self
+
+    def getZeroBasedLabel(self):
+        """
+        Gets the zeroBasedLabel
+        """
+        return self.zeroBasedLabel
+
+
 class HasThreshold(Params):
     """
     Mixin for param Threshold in binary classification.
@@ -485,7 +507,7 @@ class NNModel(JavaTransformer, HasFeaturesCol, HasPredictionCol, HasBatchSize,
         return NNModel(model=None, feature_preprocessing=None, jvalue=jvalue)
 
 
-class NNClassifier(NNEstimator):
+class NNClassifier(NNEstimator, HasZeroBasedLabel):
     """
     NNClassifier is a specialized NNEstimator that simplifies the data format for
     classification tasks. It only supports label column of DoubleType, and the fitted
@@ -526,11 +548,12 @@ class NNClassifier(NNEstimator):
 
         classifierModel.setFeaturesCol(self.getFeaturesCol()) \
             .setPredictionCol(self.getPredictionCol()) \
-            .setBatchSize(java_model.getBatchSize())
+            .setBatchSize(java_model.getBatchSize()) \
+            .setZeroBasedLabel(self.getZeroBasedLabel())
         return classifierModel
 
 
-class NNClassifierModel(NNModel, HasThreshold):
+class NNClassifierModel(NNModel, HasThreshold, HasZeroBasedLabel):
     """
     NNClassifierModel is a specialized [[NNModel]] for classification tasks. The prediction
     column will have the datatype of Double.
