@@ -27,6 +27,8 @@ NLP_ARCHITECT_VERSION="0.3.1"
 # Since bert doesn't have any released versions, use the version of the commit on Mar 29, 2019.
 BERT_COMMIT_ID="d66a146741588fb208450bde15aa7db143baaa69"
 
+SLIM_NETS_COMMIT_ID="d11d98452c2f466f64952bf18eb01e0c4c587fc7"
+
 rm -rf $DEST_DIR/*/
 
 echo "Fetching BigDL ${BIGDL_VERSION}"
@@ -71,6 +73,33 @@ then
     exit $exit_status
 fi
 
+
+echo "Fetching slim with ${SLIM_NETS_COMMIT_ID}"
+file_list=(
+"inception.py"
+"inception_resnet_v2.py"
+"inception_utils.py"
+"inception_v1.py"
+"inception_v2.py"
+"inception_v3.py"
+"inception_v4.py"
+)
+
+SLIM_DIR=$DEST_DIR/nets
+mkdir $SLIM_DIR
+for file_name in ${file_list[*]};do
+    GET_COMMAND="wget -nc https://raw.githubusercontent.com/tensorflow/models/${SLIM_NETS_COMMIT_ID}/research/slim/nets/${file_name} -P $SLIM_DIR"
+    echo "Running: $GET_COMMAND"
+    $GET_COMMAND
+    exit_status=$?
+    if [ $exit_status -ne 0 ];
+    then
+        rm -rf ${DEST_DIR}
+        echo "Failed to get $file_name package from GitHub."
+        exit $exit_status
+    fi
+done
+
 cd ${DEST_DIR}
 mkdir sources
 unzip bigdl-python-api-${BIGDL_VERSION}.zip -d sources
@@ -84,3 +113,5 @@ rm -rf sources/nlp-architect-${NLP_ARCHITECT_VERSION}
 unzip ${BERT_COMMIT_ID}.zip -d sources
 cd sources
 mv bert-${BERT_COMMIT_ID}/ bert/
+
+mv ${SLIM_DIR} nets

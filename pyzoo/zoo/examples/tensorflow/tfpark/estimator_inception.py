@@ -23,6 +23,7 @@ from zoo.feature.image.imagePreprocessing import *
 from zoo.feature.image.imageset import *
 from zoo.tfpark import TFDataset
 from zoo.tfpark.estimator import TFEstimator, TFEstimatorSpec
+from zoo.tfpark.image import inception
 
 
 def main(option):
@@ -54,21 +55,7 @@ def main(option):
 
         return dataset
 
-    def model_fn(features, labels, mode, params):
-        from nets import inception
-        slim = tf.contrib.slim
-        labels = tf.squeeze(labels, axis=1)
-        with slim.arg_scope(inception.inception_v1_arg_scope()):
-            logits, end_points = inception.inception_v1(features,
-                                                        num_classes=int(params["num_classes"]),
-                                                        is_training=True)
-
-        if mode == tf.estimator.ModeKeys.TRAIN:
-            loss = tf.reduce_mean(
-                tf.losses.sparse_softmax_cross_entropy(logits=logits, labels=labels))
-            return TFEstimatorSpec(mode, predictions=logits, loss=loss)
-        else:
-            raise NotImplementedError
+    model_fn = inception.get_inception_v1_model_fn(num_classes=2)
 
     estimator = TFEstimator(model_fn,
                             tf.train.AdamOptimizer(),
