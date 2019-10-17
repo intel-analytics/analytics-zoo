@@ -15,9 +15,9 @@
 #
 
 import zoo.pipeline.api.autograd as autograd
+from zoo.feature.common import *
 from zoo.feature.image import ImageSet
 from zoo.feature.text import TextSet
-from zoo.feature.common import FeatureSet
 from zoo.pipeline.api.keras.base import ZooKerasLayer
 from zoo.pipeline.api.keras.utils import *
 from bigdl.nn.layer import Layer
@@ -189,7 +189,7 @@ class KerasNet(ZooKerasLayer):
         Train a model for a fixed number of epochs on a DataSet.
 
         # Arguments
-        x: Input data. A Numpy array or RDD of Sample, ImageSet or TextSet.
+        x: Input data. A Numpy array or RDD of Sample, ImageSet or TextSet, FeatureSet
         y: Labels. A Numpy array. Default is None if x is already Sample RDD or ImageSet or TextSet.
         batch_size: Number of samples per gradient update. Default is 32.
         nb_epoch: Number of epochs to train.
@@ -212,8 +212,8 @@ class KerasNet(ZooKerasLayer):
                     x, y = x[:split_index], y[:split_index]
                     validation_data = to_sample_rdd(*validation_data)
                 training_data = to_sample_rdd(x, y)
-            elif (isinstance(x, RDD) or isinstance(x, ImageSet) or isinstance(x, TextSet))\
-                    or isinstance(x, FeatureSet) and not y:
+            elif (isinstance(x, RDD) or isinstance(x, ImageSet) or isinstance(x, TextSet) \
+                  or isinstance(x, FeatureSet)) and not y:
                 training_data = x
             else:
                 raise TypeError("Unsupported training data type: %s" % type(x))
@@ -243,14 +243,15 @@ class KerasNet(ZooKerasLayer):
         Evaluate a model on a given dataset in distributed mode.
 
         # Arguments
-        x: Evaluation data. A Numpy array or RDD of Sample or ImageSet or TextSet.
+        x: Evaluation data. A Numpy array or RDD of Sample or ImageSet or TextSet or FeatureSet.
         y: Labels. A Numpy array.
            Default is None if x is already Sample RDD or ImageSet or TextSet.
         batch_size: Number of samples per batch. Default is 32.
         """
         if isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
             data = to_sample_rdd(x, y)
-        elif (isinstance(x, RDD) or isinstance(x, ImageSet) or isinstance(x, TextSet)) and not y:
+        elif (isinstance(x, RDD) or isinstance(x, ImageSet) or isinstance(x, TextSet) \
+                or isinstance(x, FeatureSet)) and not y:
             data = x
         else:
             raise TypeError("Unsupported evaluation data type: %s" % type(x))
@@ -289,7 +290,7 @@ class KerasNet(ZooKerasLayer):
         Use a model to do prediction.
 
         # Arguments
-        x: Prediction data. A Numpy array or RDD of Sample or ImageSet.
+        x: Prediction data. A Numpy array or RDD of Sample or ImageSet or TextSet.
         batch_per_thread:
           The default value is 4.
           When distributed is True,the total batch size is batch_per_thread * rdd.getNumPartitions.
