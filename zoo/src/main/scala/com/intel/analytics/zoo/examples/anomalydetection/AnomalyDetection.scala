@@ -20,10 +20,12 @@ import com.intel.analytics.bigdl.numeric.NumericFloat
 import com.intel.analytics.bigdl.optim._
 import com.intel.analytics.bigdl.utils.Shape
 import com.intel.analytics.zoo.common.NNContext
+import com.intel.analytics.zoo.examples.anomalydetection.TimeSeriesPrediction.scaleFeature
 import com.intel.analytics.zoo.models.anomalydetection._
 import com.intel.analytics.zoo.pipeline.api.keras.objectives.MeanSquaredError
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkConf
+import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.functions._
@@ -73,8 +75,11 @@ object AnomalyDetection {
 
     val featureDF = loadData(sqlContext, param.inputDir)
     val featureShape = Shape(param.unrollLength, 3)
-    val unrolled: RDD[FeatureLabelIndex[Float]] =
-      assemblyFeature(featureDF, true, param.unrollLength)
+    val (scaleModel, scaledDF) = scaleFeature(featureDF, true)
+    val dataRdd: RDD[Array[Float]] = scaledDF.rdd.map(row => row.getAs[Vector](0).toArray.map(x => x.toFloat))
+
+    val unrolled: RDD[FeatureLabelIndex[Float]] = AnomalyDetector.unroll(dataRdd, param.unrollLength)
+
     val (trainRdd, testRdd) = Utils.trainTestSplit(unrolled, testSize = 1000)
 
     val model: AnomalyDetector[Float] = AnomalyDetector[Float](featureShape)
@@ -85,10 +90,18 @@ object AnomalyDetection {
       validationData = testRdd)
     val predictions = model.predict(testRdd)
 
-    val yPredict: RDD[Float] = predictions.map(x => x.toTensor.toArray()(0))
-    val yTruth: RDD[Float] = testRdd.map(x => x.label.toArray()(0))
+    val yPredict = predictions.map ( x => scaleModel.std(0) * x.toTensor.value() + scaleModel.mean(0))
+    val yTruth = testRdd.map(x => scaleModel.std(0) * x.label.valueAt(1) +  scaleModel.mean(0))
+
     val anomalies = AnomalyDetector.detectAnomalies(yTruth, yPredict, 50)
     anomalies.take(5).foreach(println)
+
+    val mse = yPredict.zip(yTruth)
+      .map(x => (x._1 - x._2) * (x._1 - x._2))
+      .reduce(_+_)/1000
+
+    println("mse: " + mse)
+
   }
 
   def loadData(sqlContext: SQLContext, dataPath: String): DataFrame = {

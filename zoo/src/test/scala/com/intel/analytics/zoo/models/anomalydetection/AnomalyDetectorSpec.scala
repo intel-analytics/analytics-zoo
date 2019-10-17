@@ -82,6 +82,16 @@ class AnomalyDetectorSpec extends ZooSpecHelper {
     assert(labels.max == 104 && labels.min == 9)
   }
 
+  "AnomalyDetector unroll multiple features " should "work properly" in {
+    val data: RDD[Array[Float]] = sc.parallelize(5 to 104)
+      .map(x => Array(x.toFloat))
+
+    val unrolled = TimeSeriesPredictor.unroll[Float](data, encoderLength = 3, decoderLength=2)
+
+      unrolled.take(10).foreach(println)
+  }
+
+
 }
 
 class AnomalyDetectorSerialTest extends ModuleSerializationTest {
