@@ -119,8 +119,8 @@ class ZooTestCase(TestCase):
             k_running_std = K.eval(klayer.running_std)
             zlayer.set_running_mean(k_running_mean)
             zlayer.set_running_std(k_running_std)
-        if kmodel.get_weights():
-            zmodel.set_weights(weight_converter(klayer, kmodel.get_weights()))
+        if kmodel.get_trainable_weights():
+            zmodel.set_weights(weight_converter(klayer, kmodel.get_trainable_weights()))
         zmodel.training(is_training)
         zoutput = zmodel.forward(input_data)
         self.assert_allclose(zoutput, koutput, rtol=rtol, atol=atol)
@@ -194,8 +194,8 @@ class ZooTestCase(TestCase):
 
     def compare_output_and_grad_input_set_weights(self, model1, model2, input_data,
                                                   rtol=1e-6, atol=1e-6):
-        if model1.get_weights():
-            model2.set_weights(model1.get_weights())
+        if model1.get_trainable_weights():
+            model2.set_weights(model1.get_trainable_weights())
         self.compare_output_and_grad_input(model1, model2, input_data, rtol, atol)
 
     def intercept(self, func, error_message):

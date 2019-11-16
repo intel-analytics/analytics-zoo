@@ -43,7 +43,7 @@ class KerasModel(object):
         return self.model.metrics_names
 
     def get_weights(self):
-        return self.model.get_weights()
+        return self.model.get_trainable_weights()
 
     def set_weights(self, weights):
         self.model.set_weights(weights)

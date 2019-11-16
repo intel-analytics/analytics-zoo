@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 
 import zoo.ray.util.utils as rutils
+from zoo.ray.data.dataset import ArrayLikeDataset
 
 np.random.seed(1337)  # for reproducibility
 
@@ -39,6 +40,13 @@ class TestUtil(TestCase):
         assert 10000 == rutils.resourceToBytes("10k")
         assert 10000000 == rutils.resourceToBytes("10m")
         assert 10000000000 == rutils.resourceToBytes("10g")
+
+    def test_split_array(self):
+        input1 = np.random.uniform(0, 1, size=(5, 2))
+        dataset = ArrayLikeDataset(input1, batch_size=2)
+        dataset.next_batch()
+        dataset.next_batch()
+        assert dataset.next_batch() == input1[5]
 
 
 if __name__ == "__main__":
