@@ -62,12 +62,12 @@ object Perf {
     parser.parse(args, ResNet50PerfParams()).foreach { param =>
       if (!param.onSpark) {
         System.setProperty("bigdl.localMode", "true")
-        System.setProperty("bigdl.engineType", "mkldnn")
       }
 
       val batchSize = param.batchSize
       val numBatch = param.numBatch
       val iteration = param.iteration
+      // Random input data
       val batchInput = Tensor(Array(numBatch, batchSize, 224, 224, 3)).rand()
       Engine.init
 
@@ -75,6 +75,12 @@ object Perf {
 
       model.doLoadOpenVINO(param.model, param.weight, param.batchSize)
 
+      // Warm up
+      List.range(0, 15).foreach { _ =>
+        model.doPredict(batchInput)
+      }
+
+      // Benchmark start
       val predictStart = System.nanoTime()
       var averageLatency = 0L
       List.range(0, iteration).foreach { _ =>
