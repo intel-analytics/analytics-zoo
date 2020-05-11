@@ -16,94 +16,64 @@
 
 package com.intel.analytics.zoo.tfpark
 
-import com.intel.analytics.bigdl.dataset.{DistributedDataSet, MiniBatch}
+import com.intel.analytics.bigdl.dataset.MiniBatch
 import com.intel.analytics.bigdl.tensor.Tensor
-import com.intel.analytics.zoo.feature.{DistributedDataSetWrapper, DistributedFeatureSet}
-import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.EngineRef
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
+import com.intel.analytics.zoo.feature._
 import org.tensorflow.DataType
-
 import com.intel.analytics.zoo.tfpark.TFTensorNumeric.NumericByteArray
 
 
-class TFDataFeatureSet(private val graph: Array[Byte],
-                       private val initIteratorOp: String,
-                       private val outputNames: Array[String],
-                       private val outputTypes: Array[DataType],
-                       private val shardIndex: String)
-  extends DistributedFeatureSet[MiniBatch[Float]] {
+class TFDataStore(private val graph: Array[Byte],
+                  private val initIteratorOp: String,
+                  private val outputNames: Array[String],
+                  private val outputTypes: Array[DataType],
+                  private val shardIndexOp: String) extends DataStore[MiniBatch[Float]] {
 
-  private val graphRunnerRDD = getGraphRunnerRDD(graph)
+  private var shardIndexValue: Int = -1
+  private var shardNum: Int = -1
+  private var coreNum: Int = -1
+  private var graphRunner: GraphRunner = null
 
-  private def getGraphRunnerRDD(graph: Array[Byte]): RDD[GraphRunner] = {
-    val sc = SparkContext.getOrCreate()
-    val nodeNumber = EngineRef.getNodeNumber()
-    val coreNumber = EngineRef.getCoreNumber()
+  override def init(upstreamData: Iterator[Any],
+                    context: DataStorePartitionContext): Unit = {
+    shardIndexValue = context.partitionIndex
+    shardNum = context.numOfPartitions
+    coreNum = context.numOfCores
+    val configBytes = SessionConfig(intraOpParallelismThreads = coreNum).toByteArray()
 
-    val broadcastedGraph = sc.broadcast(graph)
-    val originRdd = sc.parallelize(
-      Array.tabulate(nodeNumber * 20)(_ => 0), nodeNumber * 10)
-      .mapPartitions(_ => (0 until 20).toIterator)
-      .coalesce(nodeNumber)
-      .setName("PartitionRDD")
-      .persist(StorageLevel.DISK_ONLY)
-    originRdd.count()
-    val graphRunnerRDD = originRdd.mapPartitions { iter =>
-      val graphDef = broadcastedGraph.value
-      val runner = GraphRunner(graphDef,
-        null, null, null, null, SessionConfig(intraOpParallelismThreads = coreNumber).toByteArray())
-      Iterator.single(runner)
-    }.setName("GraphRunnerRDD").cache()
-    graphRunnerRDD.count()
-    graphRunnerRDD
-  }
-  override def originRDD(): RDD[_] = {
-    graphRunnerRDD
+    graphRunner = GraphRunner(graph, null, null, null, null, configBytes)
   }
 
-  override def data(train: Boolean): RDD[MiniBatch[Float]] = {
-    val initOp = this.initIteratorOp
-    val names = this.outputNames.toVector
-    val types = this.outputTypes.toVector
-    val shardIdx = this.shardIndex
-
-    graphRunnerRDD.mapPartitionsWithIndex { case (idx, dataIter) =>
-      val graphRunner = dataIter.next()
-      TFDataFeatureSet.makeIterators(
-        graphRunner,
-        train,
-        initOp,
-        idx,
-        shardIdx,
-        types,
-        names
-      )
-    }
+  override def makeIterators(train: Boolean): Iterator[MiniBatch[Float]] = {
+    TFDataStore.makeIterators(
+      graphRunner,
+      train,
+      initIteratorOp,
+      shardIndexValue,
+      shardIndexOp,
+      outputTypes.toVector,
+      outputNames.toVector
+    )
   }
 
   override def shuffle(): Unit = {
-
+    // doing nothing, tf dataset itself already shuffled
   }
 
-  override def size(): Long = {
+  override def size(): Int = {
+    // tf dataset's size is not known in advance
     -1
-  }
-
-  override def toDistributed(): DistributedDataSet[MiniBatch[Float]] = {
-    new DistributedDataSetWrapper[MiniBatch[Float]](this)
   }
 }
 
-object TFDataFeatureSet {
+object TFDataStore {
   def apply(graph: Array[Byte],
             initIteratorOp: String,
             outputNames: Array[String],
             outputTypes: Array[Int],
-            shardIndex: String): TFDataFeatureSet = {
+            shardIndex: String): TFDataStore = {
     val types = outputTypes.map(TFUtils.tfenum2datatype)
-    new TFDataFeatureSet(graph, initIteratorOp, outputNames, types, shardIndex)
+    new TFDataStore(graph, initIteratorOp, outputNames, types, shardIndex)
   }
 
   private[zoo] def generateOutputTensors(types: Vector[DataType]) = {
@@ -138,7 +108,7 @@ object TFDataFeatureSet {
         }
 
         private def getNext() = {
-          val outputs = TFDataFeatureSet.generateOutputTensors(types)
+          val outputs = TFDataStore.generateOutputTensors(types)
           val outputVec = outputs.toVector
           try {
             graphRunner.runOutputs(outputVec, names, types)
@@ -176,7 +146,7 @@ object TFDataFeatureSet {
         }
 
         private def getNext() = {
-          val outputs = TFDataFeatureSet.generateOutputTensors(types)
+          val outputs = TFDataStore.generateOutputTensors(types)
           val outputVec = outputs.toVector
           val success = try {
             graphRunner.runOutputs(outputVec, names, types)
@@ -200,4 +170,16 @@ object TFDataFeatureSet {
       }
     }
   }
+}
+
+object TFDataFeatureSet {
+  def apply(graph: Array[Byte],
+            initIteratorOp: String,
+            outputNames: Array[String],
+            outputTypes: Array[Int],
+            shardIndex: String): DistributedFeatureSet[MiniBatch[Float]] = {
+    val dataStore = TFDataStore(graph, initIteratorOp, outputNames, outputTypes, shardIndex)
+    new DataStoreFeatureSet[MiniBatch[Float]](dataStore)
+  }
+
 }

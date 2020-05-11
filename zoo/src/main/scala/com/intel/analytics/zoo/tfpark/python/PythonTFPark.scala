@@ -20,7 +20,7 @@ import com.intel.analytics.bigdl.optim._
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.zoo.common.{PythonZoo, RDDWrapper}
-import com.intel.analytics.zoo.feature.FeatureSet
+import com.intel.analytics.zoo.feature.{DistributedFeatureSet, FeatureSet}
 import com.intel.analytics.zoo.tfpark._
 import org.apache.spark.api.java.JavaRDD
 
@@ -76,13 +76,6 @@ class PythonTFPark[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZoo
     new StatelessMetric(name, idx)
   }
 
-  def createGanOptimMethod(dOptim: OptimMethod[T],
-                           gOptim: OptimMethod[T],
-                           dStep: Int, gStep: Int, gParamSize: Int): OptimMethod[T] = {
-    new GanOptimMethod[T](dOptim, gOptim, dStep, gStep, gParamSize)
-  }
-
-
   def createFakeOptimMethod(): OptimMethod[T] = {
     new FakeOptimMethod[T]()
   }
@@ -121,7 +114,7 @@ class PythonTFPark[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZoo
       val graphDef = broadcastedGraph.value
       val runner = GraphRunner(graphDef,
         null, null, null, null, SessionConfig(intraOpParallelismThreads = coreNumber).toByteArray())
-      TFDataFeatureSet.makeIterators(
+      TFDataStore.makeIterators(
         runner,
         false,
         initIteratorOp,
@@ -151,7 +144,7 @@ class PythonTFPark[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZoo
                              initIteratorOp: String,
                              outputNames: JList[String],
                              outputTypes: JList[Int],
-                             shardIndex: String): TFDataFeatureSet = {
+                             shardIndex: String): DistributedFeatureSet[MiniBatch[Float]] = {
 
 
     TFDataFeatureSet(graph,
