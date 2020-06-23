@@ -18,7 +18,7 @@ package com.intel.analytics.zoo.pipeline.inference
 
 import java.io.{File, IOException}
 import java.nio.file.{Files, Paths}
-import java.util.{ArrayList, Arrays, UUID, List => JList}
+import java.util.{ArrayList, Arrays, List => JList}
 
 import com.intel.analytics.bigdl.nn.abstractnn.Activity
 import com.intel.analytics.zoo.pipeline.api.net.{NetUtils, RegistryMap, SerializationHolder}
@@ -47,33 +47,17 @@ class OpenVINOModel(var modelHolder: OpenVINOModelHolder,
   @transient
   private lazy val executableNetworkReference: Long = {
     OpenVINOModel.logger.info("Lazy loading OpenVINO model")
-    var nativeRef = -1L
-    try {
-      val modelFile = File.createTempFile("OpenVINO", ".xml")
-      Files.write(Paths.get(modelFile.toURI), modelHolder.modelBytes)
-      val weightFile = File.createTempFile("OpenVINO", ".bin")
-      Files.write(Paths.get(weightFile.toURI), modelHolder.weightBytes)
-
-      nativeRef = if (isInt8) {
-        OpenVINOModel.logger.info(s"Load int8 model")
-        supportive.loadOpenVinoIRInt8(modelFile.getAbsolutePath,
-          weightFile.getAbsolutePath,
-          deviceType.value, batchSize)
-      } else {
-        OpenVINOModel.logger.info(s"Load fp32 model")
-        supportive.loadOpenVinoIR(modelFile.getAbsolutePath,
-          weightFile.getAbsolutePath,
-          deviceType.value, batchSize)
-      }
-      FileUtils.deleteQuietly(modelFile)
-      FileUtils.deleteQuietly(weightFile)
+    if (isInt8) {
+      OpenVINOModel.logger.info(s"Load int8 model")
+      supportive.loadOpenVinoIRInt8(modelHolder.modelPath,
+        modelHolder.weightPath,
+        deviceType.value, batchSize)
+    } else {
+      OpenVINOModel.logger.info(s"Load fp32 model")
+      supportive.loadOpenVinoIR(modelHolder.modelPath,
+        modelHolder.weightPath,
+        deviceType.value, batchSize)
     }
-    catch {
-      case io: IOException =>
-        OpenVINOModel.logger.error("error during loading OpenVINO model")
-        throw io
-    }
-    nativeRef
   }
 
   override def predict(inputs: JList[JList[JTensor]]): JList[JList[JTensor]] = {
@@ -116,6 +100,11 @@ class OpenVINOModel(var modelHolder: OpenVINOModelHolder,
       case true =>
       case false =>
         supportive.releaseOpenVINOIR(executableNetworkReference)
+        // Remove Temp model files
+        if (modelHolder.modelPath.contains("ZOOTEMPOpenVINO")) {
+          FileUtils.deleteQuietly(new File(modelHolder.modelPath))
+          FileUtils.deleteQuietly(new File(modelHolder.weightPath))
+        }
         isRelease = true
     }
   }
@@ -127,45 +116,31 @@ class OpenVINOModel(var modelHolder: OpenVINOModelHolder,
 
 object OpenVINOModel {
 
-  private val modelBytesRegistry = new RegistryMap[(Array[Byte], Array[Byte])]()
-
   val logger = LoggerFactory.getLogger(getClass)
 
   @transient
   private lazy val inDriver = NetUtils.isDriver
 
-  class OpenVINOModelHolder(@transient var modelBytes: Array[Byte],
-                            @transient var weightBytes: Array[Byte],
-                            private var id: String)
+  class OpenVINOModelHolder(@transient var modelPath: String,
+                            @transient var weightPath: String)
     extends SerializationHolder {
 
-    def this(modelBytes: Array[Byte], weightBytes: Array[Byte]) =
-      this(modelBytes, weightBytes, UUID.randomUUID().toString)
-
-    def getModelBytes(): Array[Byte] = {
-      modelBytes
-    }
-
-    def getWeightBytes(): Array[Byte] = {
-      weightBytes
-    }
-
     override def writeInternal(out: CommonOutputStream): Unit = {
-      val (graphDef, _) = modelBytesRegistry.getOrCreate(id) {
-        (modelBytes, weightBytes)
-      }
       logger.debug("Write OpenVINO model into stream")
-      out.writeString(id)
       if (inDriver) {
-        out.writeInt(graphDef._1.length)
+        // Temp Model Bytes
+        val localModelBytes = Files.readAllBytes(Paths.get(modelPath))
+        // Temp Weight Bytes
+        val localWeightBytes = Files.readAllBytes(Paths.get(weightPath))
+        out.writeInt(localModelBytes.length)
         timing(s"writing " +
-          s"${graphDef._1.length / 1024 / 1024}Mb openvino model to stream") {
-          out.write(graphDef._1)
+          s"${localModelBytes.length / 1024 / 1024}Mb OpenVINO model to stream") {
+          out.write(localModelBytes)
         }
-        out.writeInt(graphDef._2.length)
+        out.writeInt(localWeightBytes.length)
         timing(s"writing " +
-          s"${graphDef._2.length / 1024 / 1024}Mb openvino weight to stream") {
-          out.write(graphDef._2)
+          s"${localWeightBytes.length / 1024 / 1024}Mb OpenVINO weight to stream") {
+          out.write(localWeightBytes)
         }
       } else {
         out.writeInt(0)
@@ -173,34 +148,35 @@ object OpenVINOModel {
     }
 
     override def readInternal(in: CommonInputStream): Unit = {
-      id = in.readString()
-      val (graphDef, _) = modelBytesRegistry.getOrCreate(id) {
-        val modelLen = in.readInt()
-        logger.debug("Read OpenVINO model from stream")
-        assert(modelLen >= 0, "OpenVINO model length should be an non-negative integer")
-        val localModelBytes = new Array[Byte](modelLen)
-        timing("reading OpenVINO model from stream") {
-          var numOfBytes = 0
-          while (numOfBytes < modelLen) {
-            val read = in.read(localModelBytes, numOfBytes, modelLen - numOfBytes)
-            numOfBytes += read
-          }
+      val modelLen = in.readInt()
+      logger.debug("Read OpenVINO model from stream")
+      assert(modelLen >= 0, "OpenVINO model length should be an non-negative integer")
+      // Temp Model Bytes
+      val localModelBytes = new Array[Byte](modelLen)
+      timing("reading OpenVINO model from stream") {
+        var numOfBytes = 0
+        while (numOfBytes < modelLen) {
+          val read = in.read(localModelBytes, numOfBytes, modelLen - numOfBytes)
+          numOfBytes += read
         }
-        val weightLen = in.readInt()
-        assert(weightLen >= 0, "OpenVINO weight length should be an non-negative integer")
-        var localWeightBytes = new Array[Byte](weightLen)
-        timing("reading OpenVINO weight from stream") {
-          var numOfBytes = 0
-          while (numOfBytes < weightLen) {
-            val read = in.read(localWeightBytes, numOfBytes, weightLen - numOfBytes)
-            numOfBytes += read
-          }
-        }
-        (localModelBytes, localWeightBytes)
       }
-      modelBytes = graphDef._1
-      weightBytes = graphDef._2
-      id = id
+      val weightLen = in.readInt()
+      assert(weightLen >= 0, "OpenVINO weight length should be an non-negative integer")
+      // Temp Weight Bytes
+      val localWeightBytes = new Array[Byte](weightLen)
+      timing("reading OpenVINO weight from stream") {
+        var numOfBytes = 0
+        while (numOfBytes < weightLen) {
+          val read = in.read(localWeightBytes, numOfBytes, weightLen - numOfBytes)
+          numOfBytes += read
+        }
+      }
+      val modelFile = File.createTempFile("ZOOTEMPOpenVINO", ".xml")
+      Files.write(Paths.get(modelFile.toURI), localModelBytes)
+      val weightFile = File.createTempFile("ZOOTEMPOpenVINO", ".bin")
+      Files.write(Paths.get(weightFile.toURI), localWeightBytes)
+      this.modelPath = modelFile.getAbsolutePath
+      this.weightPath = weightFile.getAbsolutePath
     }
   }
 

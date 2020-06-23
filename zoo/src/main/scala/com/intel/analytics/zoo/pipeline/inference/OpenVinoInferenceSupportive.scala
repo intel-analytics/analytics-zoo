@@ -64,6 +64,7 @@ object OpenVinoInferenceSupportive extends InferenceSupportive with Serializable
   }
 
 
+
   def loadOpenVinoIRFromTempDir(modelName: String, tempDir: String): OpenVINOModel = {
     val modelFilePath: String = s"$tempDir/$modelName.xml"
     val weightFilePath: String = s"$tempDir/$modelName.bin"
@@ -79,27 +80,19 @@ object OpenVinoInferenceSupportive extends InferenceSupportive with Serializable
         case (_, _, _) => throw
           new InferenceRuntimeException("OpenVINO load from Temp dir error")
       }
-      timing("delete temporary model files") {
-        modelFile.delete()
-        weightFile.delete()
-        if(mappingFile.exists()) {mappingFile.delete()}
-      }
       model
     }
   }
-
 
   def loadOpenVinoIR(modelFilePath: String,
                      weightFilePath: String,
                      deviceType: DeviceTypeEnumVal,
                      batchSize: Int = 0): OpenVINOModel = {
     timing("load OpenVINO IR") {
-      val modelBytes = Files.readAllBytes(Paths.get(modelFilePath))
-      val weightBytes = Files.readAllBytes(Paths.get(weightFilePath))
-      val buffer = Source.fromBytes(modelBytes)
+      val buffer = Source.fromFile(modelFilePath)
       val isInt8 = buffer.getLines().count(_ matches ".*statistics.*") > 0
       buffer.close()
-      new OpenVINOModel(new OpenVINOModelHolder(modelBytes, weightBytes),
+      new OpenVINOModel(new OpenVINOModelHolder(modelFilePath, weightFilePath),
         isInt8, batchSize, deviceType)
     }
   }
@@ -112,13 +105,19 @@ object OpenVinoInferenceSupportive extends InferenceSupportive with Serializable
       val buffer = Source.fromBytes(modelBytes)
       val isInt8 = buffer.getLines().count(_ matches ".*statistics.*") > 0
       buffer.close()
-      new OpenVINOModel(new OpenVINOModelHolder(modelBytes, weightBytes),
-        isInt8, batchSize, deviceType)
+      // Write model and weight bytes into Tmp files
+      val modelFile = File.createTempFile("ZOOTEMPOpenVINO", ".xml")
+      Files.write(Paths.get(modelFile.toURI), modelBytes)
+      val weightFile = File.createTempFile("ZOOTEMPOpenVINO", ".bin")
+      Files.write(Paths.get(weightFile.toURI), weightBytes)
+      val modelHolder = new OpenVINOModelHolder(modelFile.getAbsolutePath,
+        weightFile.getAbsolutePath)
+      new OpenVINOModel(modelHolder, isInt8, batchSize, deviceType)
     }
   }
 
   def forceLoad(): Unit = {
-    logger.info("Force native loader")
+    logger.info("Force Native loader")
   }
 
   def load(path: String): Unit = {
