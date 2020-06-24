@@ -41,3 +41,16 @@ def create_trainer_config(batch_size=32, optimizer="sgd", optimizer_params=None,
         assert isinstance(extra_config, dict), "extra_config must be a dict"
         config.update(extra_config)
     return config
+
+
+def clear_up(pid):
+    import psutil
+
+    def kill():
+        if psutil.pid_exists(pid):
+            process = psutil.Process(pid)
+            for proc in process.children(recursive=True):
+                proc.kill()
+            process.kill()
+
+    return kill

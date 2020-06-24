@@ -97,6 +97,7 @@ class TestMXNetSparkXShards(TestCase):
                                validation_metrics_creator=get_metrics, test_data=test_data_shard,
                                eval_metrics_creator=get_metrics, num_workers=2)
         trainer.train(nb_epoch=2)
+        trainer.shutdown()
 
     def test_xshards_symbol_without_val(self):
         resource_path = os.path.join(os.path.split(__file__)[0], "../../../resources")
@@ -125,6 +126,7 @@ class TestMXNetSparkXShards(TestCase):
                                test_data=test_data_shard, eval_metrics_creator=get_gluon_metrics,
                                num_workers=2)
         trainer.train(nb_epoch=2)
+        trainer.shutdown()
 
 
 if __name__ == "__main__":

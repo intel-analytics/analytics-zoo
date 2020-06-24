@@ -162,8 +162,10 @@ class MXNetTrainer(object):
         modified_env = os.environ.copy()
         modified_env.update(env)
         # Need to contain system env to run bash
-        # TODO: Need to kill this process manually?
-        subprocess.Popen("python -c 'import mxnet'", shell=True, env=modified_env)
+        self.scheduler_process = subprocess.Popen("python -c 'import mxnet'", shell=True, env=modified_env)
+        from zoo.ray.process import ProcessMonitor
+        from zoo.orca.learn.mxnet.utils import clear_up
+        ProcessMonitor.register_shutdown_hook(extra_close_fn=clear_up(self.scheduler_process.pid))
 
         ray.get([
             runner.setup_distributed.remote(envs[i], self.config,
@@ -187,6 +189,8 @@ class MXNetTrainer(object):
         for runner in self.runners:
             runner.shutdown.remote()
             runner.__ray_terminate__.remote()
+        from zoo.orca.learn.mxnet.utils import clear_up
+        clear_up(self.scheduler_process.pid)()
 
 # TODO: add model save and restore
 # TODO: add predict, evaluate

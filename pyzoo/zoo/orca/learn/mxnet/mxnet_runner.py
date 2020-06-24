@@ -103,11 +103,13 @@ class MXNetRunner(object):
                 self.trainer = None
         else:  # server
             # Need to use the environment on each raylet process for the correct python environment.
-            # TODO: Need to kill this process manually?
             modified_env = os.environ.copy()
             modified_env.update(env)
             # For servers, just import mxnet and no need to do anything else
-            subprocess.Popen("python -c 'import mxnet'", shell=True, env=modified_env)
+            self.server_process = subprocess.Popen("python -c 'import mxnet'", shell=True, env=modified_env)
+            from zoo.ray.process import ProcessMonitor
+            from zoo.orca.learn.mxnet.utils import clear_up
+            ProcessMonitor.register_shutdown_hook(extra_close_fn=clear_up(self.server_process.pid))
 
     def train(self, nb_epoch=1):
         """Train the model and update the model parameters."""
@@ -224,7 +226,9 @@ class MXNetRunner(object):
             del self.val_data
             del self.trainer
             del self.loss
-        # TODO: also delete downloaded data as well?
+        else:
+            from zoo.orca.learn.mxnet.utils import clear_up
+            clear_up(self.server_process.pid)()
 
     def get_node_ip(self):
         """Returns the IP address of the current node."""
