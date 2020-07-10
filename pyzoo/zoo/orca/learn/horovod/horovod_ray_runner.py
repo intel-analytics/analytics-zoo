@@ -22,6 +22,7 @@ from horovod.run.task_fn import _task_fn
 from horovod.run.common.util import settings as hvd_settings
 from horovod.run.common.util import timeout, secret
 from horovod.run.task import task_service
+import ray.cloudpickle as cloudpickle
 
 
 class HorovodWorker:
