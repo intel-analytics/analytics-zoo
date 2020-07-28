@@ -145,6 +145,7 @@ def setup_package():
         dependency_links=['https://d3kbcqa49mib13.cloudfront.net/spark-2.0.0-bin-hadoop2.7.tgz'],
         include_package_data=True,
         package_data={"zoo.share": ['lib/analytics-zoo*with-dependencies.jar', 'conf/*', 'bin/*',
+                                    'bin/standalone/*', 'bin/standalone/sbin/*',
                                     'extra-resources/*']},
         scripts=scripts,
         classifiers=[
