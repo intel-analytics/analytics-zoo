@@ -180,6 +180,10 @@ class PythonZooNet[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZoo
     TorchModel(model, weights.storage)
   }
 
+  def torchModelToBF16(model: TorchModel): Unit = {
+    model.toBF16()
+  }
+
   def createTorchLoss(criterion: Array[Byte]): TorchLoss = {
     TorchLoss(criterion)
   }

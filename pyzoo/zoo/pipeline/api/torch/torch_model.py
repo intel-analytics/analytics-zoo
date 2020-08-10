@@ -57,6 +57,14 @@ class TorchModel(Layer):
         net = TorchModel(bys, flatten_weight)
         return net
 
+    def to_bf16(self):
+        """
+        Convert to BF16 torch model
+        :return: a bf16 TorchModel
+        """
+        callZooFunc(self.bigdl_type, "torchModelToBF16", self.value)
+        return self
+
     def to_pytorch(self):
         """
         Convert to pytorch model

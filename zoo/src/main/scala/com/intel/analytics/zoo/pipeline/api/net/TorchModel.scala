@@ -61,6 +61,13 @@ class TorchModel private(private val modelHolder: TorchModel2Holder, init_weight
   val weights: Tensor[Float] = Tensor[Float](Storage[Float](init_weights))
   val gradients: Tensor[Float] = Tensor[Float](weights.size())
 
+  protected var bf16 = false
+
+  def toBF16(): this.type = {
+    bf16 = true
+    this
+  }
+
   override def parameters(): (Array[Tensor[Float]], Array[Tensor[Float]]) = {
     (Array(weights), Array(gradients))
   }
@@ -72,10 +79,17 @@ class TorchModel private(private val modelHolder: TorchModel2Holder, init_weight
         |
         |""".stripMargin
 
-  val forwardCode =
-    s"""
-       |output = ${getName()}(input)
-       |""".stripMargin
+  protected def forwardCode() = {
+    if (bf16) {
+      s"""
+         |input = input.to_mkldnn(torch.bfloat16)
+         |output = ${getName()}(input)
+         |output = output.to_dense()
+         |""".stripMargin
+    } else {
+      s"output = ${getName()}(input)"
+    }
+  }
 
   override def updateOutput(input: Activity): Activity = {
     load
@@ -105,14 +119,20 @@ class TorchModel private(private val modelHolder: TorchModel2Holder, init_weight
       PythonInterpreter.set("newWeight", new NDArray[Array[Float]](weights.storage().array()))
       PythonInterpreter.exec(setWeightCode)
       println(s"setWeight time is ${(System.nanoTime() - startTime) / 1e9}")
-      this.forwardCode
+      this.forwardCode()
     } else {
-      this.forwardCode
+      this.forwardCode()
     }
+
     PythonInterpreter.exec(forwardCode)
     println(s"run forward cost: ${(System.nanoTime() - startTime) / 1e9}")
-    val outputNd = PythonFeatureSet.toArrayTensor(
-      PythonInterpreter.getValue[NDArray[_]]("ptensor_to_numpy(output.data)"))
+    val outputNd = if (bf16) {
+      PythonFeatureSet.toArrayTensor(
+        PythonInterpreter.getValue[NDArray[_]]("ptensor_to_numpy(output.float().data)"))
+    } else {
+      PythonFeatureSet.toArrayTensor(
+        PythonInterpreter.getValue[NDArray[_]]("ptensor_to_numpy(output.data)"))
+    }
     if (outputNd.length == 1) {
       output = outputNd(0)
     } else {
