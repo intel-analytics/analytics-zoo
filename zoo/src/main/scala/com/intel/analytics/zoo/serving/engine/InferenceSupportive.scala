@@ -37,8 +37,10 @@ object InferenceSupportive {
           val value = PostProcessing(result.toTensor[Float], params.filter)
           (pathByteBatch(idx)._1, value)
         } catch {
-          case _ =>
-            logger.info("Your input format is invalid to your model, this batch is skipped")
+          case e:Exception =>
+            logger.error(e.getMessage)
+            e.printStackTrace()
+            logger.error("Your input format is invalid to your model, this batch is skipped")
             null
         }
       }).filter(x => x != null)
@@ -62,7 +64,10 @@ object InferenceSupportive {
          * have to squeeze it back.
          */
         dimCheck(t, "add", params)
+        println(t)
+        println(t.getClass)
         val result = params.model.doPredict(t)
+        println(result)
         dimCheck(result, "remove", params)
         dimCheck(t, "remove", params)
         val t3 = System.nanoTime()
@@ -90,8 +95,10 @@ object InferenceSupportive {
         println(s"Inference logic total time ${(t4 - t1) / 1e9} s")
         kvResult
       } catch {
-        case _ =>
-          logger.info("Your input format is invalid to your model, this batch is skipped")
+        case e:Exception =>
+          logger.error(e.getMessage)
+          e.printStackTrace()
+          logger.error("Your input format is invalid to your model, this batch is skipped")
           pathByteBatch.toParArray.map(x => (x._1, ""))
       }
     })

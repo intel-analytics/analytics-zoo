@@ -31,6 +31,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
 import org.apache.spark.util.LongAccumulator
 import com.intel.analytics.zoo.serving.utils.SerParams
+import org.apache.spark.storage.StorageLevel
 
 object SparkStreamingClusterServing {
   Logger.getLogger("org").setLevel(Level.ERROR)
@@ -115,9 +116,10 @@ object SparkStreamingClusterServing {
       /**
        * This is reserved for future dynamic loading model
        */
-      m.persist()
+      m.persist(StorageLevel.MEMORY_AND_DISK)
 
       if (!m.isEmpty) {
+
         val microBatchStart = System.nanoTime()
         val x = m.coalesce(1)
         acc.reset()
@@ -219,6 +221,8 @@ object SparkStreamingClusterServing {
         }
 
       }
+
+      m.unpersist()
     }
 
     /**
