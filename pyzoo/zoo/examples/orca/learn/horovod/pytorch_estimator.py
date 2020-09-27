@@ -22,6 +22,7 @@ import torch.nn as nn
 
 from zoo.orca import init_orca_context, stop_orca_context
 from zoo.orca.learn.pytorch import Estimator
+from zoo.ray import RayContext
 
 
 class LinearDataset(torch.utils.data.Dataset):
@@ -77,23 +78,45 @@ def validation_data_creator(config):
 
 
 def train_example(workers_per_node):
+    config = {
+            "lr": 1e-2,  # used in optimizer_creator
+            "hidden_size": 1,  # used in model_creator
+            "batch_size": 4,  # used in data_creator
+        }
     estimator = Estimator.from_torch(
         model=model_creator,
         optimizer=optimizer_creator,
         loss=nn.MSELoss,
         scheduler_creator=scheduler_creator,
         workers_per_node=workers_per_node,
-        config={
-            "lr": 1e-2,  # used in optimizer_creator
-            "hidden_size": 1,  # used in model_creator
-            "batch_size": 4,  # used in data_creator
-        })
+        config=config)
+
+    train_data_loader = train_data_creator(config)
+    val_data_loader = validation_data_creator(config)
+
+    from zoo.orca.data.service import DataService
+
+    train_service = DataService(data_loader=train_data_loader) # sending training records to a message queue, currently using ray's redis for demo
+    distributed_train_loader = train_service.make_distributed_data_loader(num_workers=0) # this data loader remember how to access the queue
+    val_service = DataService(data_loader=val_data_loader)
+    distributed_val_loader = val_service.make_distributed_data_loader(num_workers=0)
+
+    train_service.start() # start filling records in the queue
+    val_service.start()
+
+    # the data processing logic can potentially be decoupled with training training logic and deployed as another distributed application
+
+    import time
+    time.sleep(2)
 
     # train 5 epochs
-    stats = estimator.fit(train_data_creator, epochs=5)
+    stats = estimator.fit(lambda _: distributed_train_loader, epochs=1) # can directly serialize this data loader
     print("train stats: {}".format(stats))
-    val_stats = estimator.evaluate(validation_data_creator)
+    val_stats = estimator.evaluate(lambda _: distributed_val_loader)
     print("validation stats: {}".format(val_stats))
+
+    train_service.stop()
+    val_service.stop()
 
     # retrieve the model
     model = estimator.get_model()
@@ -119,6 +142,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     init_orca_context(cluster_mode=args.cluster_mode, cores=args.cores,
-                      num_nodes=args.num_nodes, memory=args.memory)
+                      num_nodes=args.num_nodes, memory=args.memory, password="123456", redis_port=6379)
     train_example(workers_per_node=args.workers_per_node)
     stop_orca_context()

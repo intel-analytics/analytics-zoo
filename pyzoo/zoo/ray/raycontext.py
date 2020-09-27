@@ -312,6 +312,7 @@ class RayContext(object):
         self.env = env
         self.extra_params = extra_params
         self._address_info = None
+        self.redis_port = redis_port
         if self.is_local:
             self.num_ray_nodes = 1
             spark_cores = self._get_spark_local_cores()
@@ -458,7 +459,8 @@ class RayContext(object):
                 import ray
                 self._address_info = ray.init(num_cpus=self.ray_node_cpu_cores,
                                               object_store_memory=self.object_store_memory,
-                                              resources=self.extra_params)
+                                              redis_port=self.redis_port,
+                                              resources=self.extra_params, redis_password=self.redis_password)
             else:
                 self.cluster_ips = self._gather_cluster_ips()
                 from bigdl.util.common import init_executor_gateway
