@@ -234,7 +234,7 @@ class InferenceModel(private var autoScalingEnabled: Boolean = true,
   }
 
   /**
-   * load a Torch model as TorchNet
+   * load a Torch model as TorchModel
    *
    * @param modelPath the path of the torch script
    */
@@ -243,12 +243,12 @@ class InferenceModel(private var autoScalingEnabled: Boolean = true,
   }
 
   /**
-   * load a Torch model as TorchNet
+   * load a Torch model as TorchModel
    *
    * @param modelBytes the bytes of the torch script
    */
-  def doLoadPyTorch(modelBytes: Array[Byte]): Unit = {
-    doLoadPyTorchModel(modelBytes)
+  def doLoadPyTorchBytes(modelBytes: Array[Byte]): Unit = {
+    doLoadPyTorchModelBytes(modelBytes)
   }
 
   /**
@@ -445,7 +445,7 @@ class InferenceModel(private var autoScalingEnabled: Boolean = true,
     offerModelQueue()
   }
 
-  private def doLoadPyTorchModel(modelBytes: Array[Byte]): Unit = {
+  private def doLoadPyTorchModelBytes(modelBytes: Array[Byte]): Unit = {
     clearModelQueue()
     this.originalModel = InferenceModelFactory.loadFloatModelForPyTorch(modelBytes)
     offerModelQueue()

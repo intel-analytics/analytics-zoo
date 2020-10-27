@@ -19,9 +19,11 @@ import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.zoo.common.{PythonInterpreter, PythonInterpreterTest}
 import com.intel.analytics.zoo.core.TFNetNative
 import com.intel.analytics.zoo.pipeline.api.keras.ZooSpecHelper
+import com.intel.analytics.zoo.pipeline.inference.{InferenceModel, AbstractModel, FloatModel}
 import jep.NDArray
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.{SparkConf, SparkContext}
+
 
 @PythonInterpreterTest
 class TorchModelSpec extends ZooSpecHelper{
@@ -232,4 +234,60 @@ class TorchModelSpec extends ZooSpecHelper{
     PythonInterpreter.exec(genInputCode)
     model.forward(Tensor[Float]())
   }
+
+   "doLoadPyTorch" should "do load PyTorch Model without error" in {
+      ifskipTest()
+      val tmpname = createTmpFile().getAbsolutePath()
+      val code = lenet +
+        s"""
+           |model = LeNet()
+           |torch.save(model, "$tmpname", pickle_module=zoo_pickle_module)
+           |""".stripMargin
+      PythonInterpreter.exec(code)
+      val model = new InferenceModel()
+      model.doLoadPyTorch(tmpname)
+
+      val genInputCode =
+        s"""
+           |import numpy as np
+           |import torch
+           |input = torch.tensor(np.random.rand(4, 1, 28, 28), dtype=torch.float32)
+           |target = torch.tensor(np.ones([4]), dtype=torch.long)
+           |_data = (input, target)
+           |""".stripMargin
+      PythonInterpreter.exec(genInputCode)
+      val result = model.doPredict(Tensor[Float]())
+      result should not be (Tensor[Float](4, 10).fill(-2.3025851f))
+    }
+
+    "doLoadPyTorch" should "also load PyTorch by modelBytes" in {
+        ifskipTest()
+        val code = lenet +
+          s"""
+             |model = LeNet()
+             |criterion = nn.CrossEntropyLoss()
+             |from pyspark.serializers import CloudPickleSerializer
+             |byc = CloudPickleSerializer.dumps(CloudPickleSerializer, criterion)
+             |bys = io.BytesIO()
+             |torch.save(model, bys, pickle_module=zoo_pickle_module)
+             |bym = bys.getvalue()
+             |""".stripMargin
+        PythonInterpreter.exec(code)
+
+        val bys = PythonInterpreter.getValue[Array[Byte]]("bym")
+        val model = new InferenceModel()
+        model.doLoadPyTorchBytes(bys)
+
+        val genInputCode =
+          s"""
+             |import numpy as np
+             |import torch
+             |input = torch.tensor(np.random.rand(4, 1, 28, 28), dtype=torch.float32)
+             |target = torch.tensor(np.ones([4]), dtype=torch.long)
+             |_data = (input, target)
+             |""".stripMargin
+        PythonInterpreter.exec(genInputCode)
+        val result = model.doPredict(Tensor[Float]())
+        result should not be (Tensor[Float](4, 10).fill(-2.3025851f))
+      }
 }
