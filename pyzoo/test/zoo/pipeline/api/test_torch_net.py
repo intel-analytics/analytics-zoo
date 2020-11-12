@@ -451,7 +451,7 @@ class TestPytorch(ZooTestCase):
         try:
             tmp_dir = tempfile.mkdtemp()
             modelPath = os.path.join(tmp_dir, "model")
-            az_model.savePytorch(modelPath)
+            az_model.save_pytorch(modelPath)
             loaded = TorchNet(modelPath)
             resDF = NNModel(loaded).setPredictionCol("loaded").transform(res)
             assert resDF.filter("prediction==loaded").count() == resDF.count()
@@ -504,6 +504,15 @@ class TestPytorch(ZooTestCase):
             except OSError as exc:
                 if exc.errno != errno.ENOENT:  # ENOENT - no such file or directory
                     raise  # re-raise exception
+
+    def test_embedding(self):
+        model = nn.Embedding(20, 5)
+        torch_input = torch.LongTensor(4, 10).random_(0, 20)
+        torch_output = model.forward(torch_input).detach().numpy()
+        net = TorchNet.from_pytorch(model, [1, 10], dtype=torch.long)
+        zoo_output = net.forward(torch_input.numpy())
+        assert np.allclose(zoo_output, torch_output)
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

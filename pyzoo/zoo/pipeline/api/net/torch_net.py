@@ -43,7 +43,7 @@ class TorchNet(Layer):
         super(TorchNet, self).__init__(None, bigdl_type, path)
 
     @staticmethod
-    def from_pytorch(module, input, check_trace=True):
+    def from_pytorch(module, input, dtype=torch.float, check_trace=True):
         """
         Create a TorchNet directly from PyTorch model, e.g. model in torchvision.models.
         Users need to provide an example input or the input tensor shape.
@@ -63,11 +63,24 @@ class TorchNet(Layer):
         if input is None:
             raise Exception("please provide an example input or input Tensor size")
 
-        sample = TorchNet.get_sample_input(input)
+        sample = TorchNet.get_sample_input(input, dtype)
         temp = tempfile.mkdtemp()
 
+        from torch import nn
+
+        class OuterModule(nn.Module):
+            def __init__(self, model):
+                super(OuterModule, self).__init__()
+                self.module = model
+
+            def forward(self, x):
+                if dtype == torch.long:
+                    x = x.long()
+                x = self.module(x)
+                return x
+
         # save model
-        traced_script_module = torch.jit.trace(module, sample, check_trace=check_trace)
+        traced_script_module = torch.jit.trace(OuterModule(module), sample, check_trace=check_trace)
         path = os.path.join(temp, "model.pt")
         traced_script_module.save(path)
 
@@ -77,7 +90,7 @@ class TorchNet(Layer):
         return net
 
     @staticmethod
-    def get_sample_input(input):
+    def get_sample_input(input, dtype):
         if isinstance(input, torch.Tensor):
             return input
 
@@ -85,14 +98,14 @@ class TorchNet(Layer):
             if all(isinstance(x, torch.Tensor) for x in input):  # tensors
                 return tuple(input)
             elif all(isinstance(x, int) for x in input):  # ints
-                return torch.rand(input)
+                return generate_torch_input(input, dtype)
             elif all(isinstance(x, (list, tuple)) for x in input) and \
                     all(isinstance(y, int) for x in input for y in x):  # nested int list (tuple)
-                return tuple(map(lambda size: torch.rand(size), input))
+                return tuple(map(lambda size: generate_torch_input(size, dtype), input))
 
         raise Exception("Unsupported input type: " + str(input))
 
-    def savePytorch(self, path):
+    def save_pytorch(self, path):
         '''
         save the model as a torch script module
         '''
@@ -132,3 +145,10 @@ class TorchNet(Layer):
                 return [Layer.convert_output(result) for result in results]
             else:
                 raise TypeError("Unsupported prediction data type: %s" % type(x))
+
+
+def generate_torch_input(size, dtype):
+    if dtype == torch.long:
+        return torch.LongTensor(size).random_(0, 1)
+    else:
+        return torch.rand(size)
