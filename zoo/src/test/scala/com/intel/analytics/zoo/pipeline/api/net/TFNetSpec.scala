@@ -18,12 +18,12 @@ package com.intel.analytics.zoo.pipeline.api.net
 
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.utils.{LayerException, T}
-import com.intel.analytics.zoo.tfpark.TFUtils
+import com.intel.analytics.zoo.tfpark.{TFTrainingHelper, TFUtils}
 import org.apache.commons.lang.StringUtils
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.SparkConf
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
-import org.tensorflow.{Tensor => TFTensor}
+import org.tensorflow.{DataType, Tensor => TFTensor}
 
 
 class TFNetSpec extends FlatSpec with Matchers with BeforeAndAfter {
@@ -189,5 +189,62 @@ class TFNetSpec extends FlatSpec with Matchers with BeforeAndAfter {
     val result = tt.storage().array().map(new String(_, "utf-8")).toSeq
 
     result should be (inputs.toSeq)
+  }
+
+  "tftraining helper" should "work" in {
+    val helper = TFTrainingHelper("/home/yang/sources/zoo/pyzoo/logs")
+    helper.restoreFromCheckpoint()
+
+    val input = Vector(
+      Tensor[Float](shape = Array(4, 4), data = Array(1.0f, 0.0f, 1.0f, 8.0f, 8.0f, 3.0f, 9.0f, 8.0f, 7.0f, 3.0f, 6.0f, 5.0f, 1.0f, 9.0f, 3.0f, 4.0f)),
+      Tensor[Float](shape = Array(4, 1), data = Array(0.0f, 0.0f, 0.0f, 0.0f))
+    )
+    val inputNames = Vector(
+      "input_1:0",
+      "output_target:0"
+    )
+
+    val inputTypes = Vector(DataType.FLOAT, DataType.FLOAT)
+
+    val output = Vector(
+      Tensor[Float]()
+    )
+
+    val outputNames = Vector("loss/mul:0")
+
+    val outputTypes = Vector(DataType.FLOAT)
+
+    val targets = Vector.empty
+
+    helper.graphRunner.run(
+      input,
+      inputNames,
+      inputTypes,
+      output,
+      outputNames,
+      outputTypes,
+      targets
+    )
+
+    print(output)
+
+  }
+
+  private def truncate(value: Float): Int = {
+    java.lang.Float.floatToRawIntBits(value) & 0xffff0000
+  }
+
+  private def toFloat(byte1: Byte, byte2: Byte): Float = {
+    java.lang.Float.intBitsToFloat(byte1 << 24 | byte2 << 16 & 0x00ff0000)
+  }
+
+  "compress" should "work" in {
+    val bytes = truncate(9.488388f)
+
+    val result1 = java.lang.Float.floatToRawIntBits(3.7010207f).toHexString
+    val result2 = java.lang.Float.floatToRawIntBits(3.7010205f).toHexString
+
+    println(result1)
+    println(result2)
   }
 }

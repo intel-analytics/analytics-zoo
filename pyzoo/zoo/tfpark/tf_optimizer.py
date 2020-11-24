@@ -244,7 +244,6 @@ class TFModel(object):
         if not os.path.isdir(folder):
             os.makedirs(folder)
         saver.save(sess, os.path.join(folder, "model"), write_meta_graph=False)
-
         meta = {
             "inputs": [i.name for i in inputs],
             "input_types": [i.dtype.as_datatype_enum for i in inputs],
@@ -387,7 +386,7 @@ class TFOptimizer:
 
         self.estimator = Estimator(self.tf_model.training_helper_layer,
                                    self.optim_method,
-                                   self.model_dir)
+                                   self.model_dir, compress_type="none")
 
         if self.clip_norm:
             self.estimator.set_l2_norm_gradient_clipping(self.clip_norm)
@@ -502,7 +501,7 @@ class TFOptimizer:
 
         tf_model = TFModel.create(loss, sess, inputs, labels, [], grads, variables, graph,
                                   tensor_with_value, session_config, metrics,
-                                  updates, model_dir=None, train_op=train_op)
+                                  updates, model_dir=model_dir, train_op=train_op)
         return cls(tf_model, optim_method, sess=sess, dataset=dataset,
                    clip_norm=clip_norm, clip_value=clip_value, model_dir=model_dir)
 
@@ -647,7 +646,7 @@ class TFOptimizer:
         keras_optimizer = keras_model.optimizer
 
         from zoo.tfpark.zoo_optimizer import get_gradients_for_keras
-        grads = get_gradients_for_keras(keras_optimizer, loss, variables)
+        grads, grads_before_clip = get_gradients_for_keras(keras_optimizer, loss, variables)
         grads_and_vars = list(zip(grads, variables))
         import tensorflow.python.keras.optimizers as koptimizers
         if isinstance(keras_optimizer, koptimizers.TFOptimizer):
@@ -706,13 +705,12 @@ class TFOptimizer:
             if hasattr(keras_optimizer, 'clipvalue'):
                 clip_value = (-keras_optimizer.clipvalue, keras_optimizer.clipvalue)
             tf_model = TFModel.create(loss, sess, model_inputs, model_targets, keras_model.outputs,
-                                      grads, variables, loss.graph,
+                                      grads_before_clip, variables, loss.graph,
                                       tensor_with_value, session_config, metrics,
                                       updates, model_dir=None)
 
             return cls(tf_model, optimizer, sess=sess, dataset=dataset,
                        clip_norm=clip_norm, clip_value=clip_value, model_dir=model_dir)
-
         return cls.from_train_op(train_op, loss, inputs=model_inputs, labels=model_targets,
                                  metrics=metrics, updates=updates, sess=sess, dataset=dataset,
                                  tensor_with_value=tensor_with_value, session_config=session_config,

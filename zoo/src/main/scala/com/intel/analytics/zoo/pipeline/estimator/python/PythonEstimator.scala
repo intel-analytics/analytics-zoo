@@ -41,6 +41,12 @@ object PythonEstimator {
 class PythonEstimator[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZoo[T]{
   def createEstimator(model: Module[T],
                       optimMethod: OptimMethod[T],
+                      modelDir: String, compresType: String): Estimator[T] = {
+    Estimator(model, optimMethod, modelDir, compresType)
+  }
+
+  def createEstimator(model: Module[T],
+                      optimMethod: OptimMethod[T],
                       modelDir: String): Estimator[T] = {
     Estimator(model, optimMethod, modelDir)
   }

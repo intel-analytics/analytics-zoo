@@ -27,10 +27,11 @@ class Estimator(JavaValue):
     both local host and distributed spark environment.
     """
 
-    def __init__(self, model, optim_methods=None, model_dir=None, jvalue=None, bigdl_type="float"):
+    def __init__(self, model, optim_methods=None, model_dir=None, compress_type="none",
+                 jvalue=None, bigdl_type="float"):
         self.bigdl_type = bigdl_type
         self.value = jvalue if jvalue else callZooFunc(
-            bigdl_type, self.jvm_class_constructor(), model, optim_methods, model_dir)
+            bigdl_type, self.jvm_class_constructor(), model, optim_methods, model_dir, compress_type)
 
     def clear_gradient_clipping(self):
         """

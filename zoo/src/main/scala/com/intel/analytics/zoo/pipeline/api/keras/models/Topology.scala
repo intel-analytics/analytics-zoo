@@ -1202,7 +1202,7 @@ private[zoo] class InternalDistriOptimizer[T: ClassTag] (
     // subModuleName -> (storageOffset, length, AllReduceParameter)
     if (allReduceParameter == null || cachedModels == null) {
       allReduceParameter = AllReduceParameter.newParameter[T](partitionNum,
-        modelParameters._1.nElement())
+        modelParameters._1.nElement(), compress = this.compress)
       this.close()
       parameterSplits = if (optimMethods.size != 1) {
         val p = optimMethods.map { case (subModuleName, optimMethod) =>
@@ -1805,7 +1805,11 @@ object InternalDistriOptimizer {
       case _: TFTrainingHelperV2 =>
         val partitionNum = models.partitions.length
         models.mapPartitions(iter => {
-          iter.next().localModels.head.asInstanceOf[TFTrainingHelperV2].moveWeightsOutOfTF()
+          val cached = iter.next()
+          val weightsResults = parameters.getWeights(cached.modelWeights.head.narrow(1,
+            parameters.paramOffset, parameters.size))
+          weightsResults.waitResult()
+          cached.localModels.head.asInstanceOf[TFTrainingHelperV2].moveWeightsOutOfTF()
           Iterator.single(1)
         }).reduce(_ + _)
 

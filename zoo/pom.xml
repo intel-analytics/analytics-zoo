@@ -26,7 +26,7 @@
         <scala.macros.version>2.1.0</scala.macros.version>
         <scalatest.version>2.2.4</scalatest.version>
         <spark.version>2.4.3</spark.version>
-        <bigdl.version>0.11.1</bigdl.version>
+        <bigdl.version>0.13.0-SNAPSHOT</bigdl.version>
         <core.artifactId>zoo-core-dist-all</core.artifactId>
         <core.dependencyType>jar</core.dependencyType>
         <data-store-url>http://download.tensorflow.org</data-store-url>
@@ -332,7 +332,6 @@
             <groupId>com.intel.analytics.bigdl</groupId>
             <artifactId>${bigdl.artifactId}</artifactId>
             <version>${bigdl.version}</version>
-            <scope>${bigdl-scope}</scope>
         </dependency>
         <dependency>
             <groupId>ml.dmlc</groupId>

@@ -36,6 +36,7 @@ def process_grad(grad):
             # no work around
             grad = tf.unsorted_segment_sum(grad.values, grad.indices,
                                            grad.dense_shape[0])
+
     return grad
 
 

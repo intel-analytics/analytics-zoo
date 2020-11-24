@@ -67,7 +67,7 @@ def get_gradients_for_keras(optimizer, loss, params):
                 clip_ops.clip_by_value(g, -optimizer.clipvalue, optimizer.clipvalue)
                 for g in grads
             ]
-    return grads
+    return grads, all_reduced_grads
 
 
 class ZooOptimizer(tf.train.Optimizer):

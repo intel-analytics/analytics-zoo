@@ -68,7 +68,8 @@ private[estimator] case class ConstantClipping(min: Double, max: Double) extends
 class Estimator[T: ClassTag] private[zoo](
       model: Module[T],
       optimMethods: Map[String, OptimMethod[T]] = Map(),
-      modelDir: Option[String] = None)(implicit ev: TensorNumeric[T]) extends AbstractEstimator[T] {
+      modelDir: Option[String] = None,
+      compressType: String = "fp16")(implicit ev: TensorNumeric[T]) extends AbstractEstimator[T] {
   import Estimator.logger
   protected var internalEstimator: AbstractEstimator[T] = null
 
@@ -153,6 +154,7 @@ class Estimator[T: ClassTag] private[zoo](
                 .setCheckpointDir(modelDir)
                 .setOptimMethods(optimMethods)
                 .setNumOfSlice(d.numOfSlice)
+                .setCompressType(compressType)
             case OptimizerV2 =>
               new InternalDistriOptimizerV2[T](model, null, criterion)
                 .setCheckpointDir(modelDir)
@@ -273,7 +275,18 @@ object Estimator {
   def apply[T: ClassTag](
         model: Module[T],
         optimMethod: OptimMethod[T],
-        modelDir: String)(implicit ev: TensorNumeric[T]): Estimator[T] = {
+        modelDir: String, compressType: String)(implicit ev: TensorNumeric[T]): Estimator[T] = {
+    if (null != modelDir && "" != modelDir) {
+      new Estimator[T](model, Map(model.getName() -> optimMethod), Some(modelDir), compressType)
+    } else {
+      new Estimator[T](model, Map(model.getName() -> optimMethod), compressType = compressType)
+    }
+  }
+
+  def apply[T: ClassTag](
+                          model: Module[T],
+                          optimMethod: OptimMethod[T],
+                          modelDir: String)(implicit ev: TensorNumeric[T]): Estimator[T] = {
     if (null != modelDir && "" != modelDir) {
       new Estimator[T](model, Map(model.getName() -> optimMethod), Some(modelDir))
     } else {
