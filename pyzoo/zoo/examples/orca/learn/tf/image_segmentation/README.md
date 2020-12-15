@@ -20,7 +20,7 @@ pip install analytics_zoo-${VERSION}-${TIMESTAMP}-py2.py3-none-${OS}_x86_64.whl
 Note: conda environment is required to run on Yarn, but not strictly necessary for running on local.
 
 ## Data Preparation
-You should manually download the dataset from kaggle [carvana-image-masking-challenge](https://www.kaggle.com/c/carvana-image-masking-challenge/data) and save it to `/tmp/carvana/`. We will need three files, train.zip, train_masks.zip and train_masks.csv.zip
+You should manually download the dataset from kaggle [carvana-image-masking-challenge](https://www.kaggle.com/c/carvana-image-masking-challenge/data) and save it to `~/tensorflow_datasets/downloads/manual/carvana`. We will need two files, train.zip and train_masks.zip
 
 ## Run example on local
 ```bash
@@ -28,8 +28,22 @@ python image_segmentation.py --cluster_mode local
 ```
 
 ## Run example on yarn cluster
+
+If have not run image_segmention.py locally, you can run the following command to prepare tf_records file locally and put it to hdfs.
+Although tensorflow_datasets support directly perparing data in hdfs, that might generate too much small files that will harm your
+hdfs performance.
+
 ```bash
-python image_segmentation.py --cluster_mode yarn 
+python carvana_datasets.py
+hadoop fs -put ~/tensorflow_datasets/ /tensorflow_datasets/
+```
+
+
+```bash
+source ${HADOOP_HOME}/libexec/hadoop-config.sh # setting HADOOP_HDFS_HOME, LD_LIBRARY_PATH, etc
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${JAVA_HOME}/jre/lib/amd64/server
+
+CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob) python image_segmentation.py --cluster_mode yarn 
 ```
 
 Options

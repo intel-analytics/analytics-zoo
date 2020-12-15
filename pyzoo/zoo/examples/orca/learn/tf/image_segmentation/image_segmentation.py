@@ -32,69 +32,38 @@ import numpy as np
 from zoo.orca import init_orca_context, stop_orca_context
 from zoo.orca.data import XShards
 from zoo.orca.learn.tf.estimator import Estimator
+from zoo.examples.orca.learn.tf.image_segmentation.carvana_datasets import Carvana
+import tensorflow_datasets as tfds
 
+def preprocessing(data):
+    image = data['image']
+    mask = data['mask']
+    image = tf.image.resize(image, size=[128, 128]) / 255.0
+    mask = tf.image.rgb_to_grayscale(tf.image.resize(mask[0], size=[128, 128])) / 255.0
+    return image, mask
 
-def load_data_from_zip(file_path, file):
-    with zipfile.ZipFile(os.path.join(file_path, file), "r") as zip_ref:
-        unzipped_file = zip_ref.namelist()[0]
-        zip_ref.extractall(file_path)
+# Define custom metrics
+def dice_coeff(y_true, y_pred):
+    smooth = 1.
+    # Flatten
+    y_true_f = tf.reshape(y_true, [-1])
+    y_pred_f = tf.reshape(y_pred, [-1])
+    intersection = tf.reduce_sum(y_true_f * y_pred_f)
+    score = (2. * intersection + smooth) / \
+            (tf.reduce_sum(y_true_f) + tf.reduce_sum(y_pred_f) + smooth)
+    return score
 
+# Define custom loss function
+def dice_loss(y_true, y_pred):
+    loss = 1 - dice_coeff(y_true, y_pred)
+    return loss
 
-def load_data(file_path):
-    load_data_from_zip(file_path, 'train.zip')
-    load_data_from_zip(file_path, 'train_masks.zip')
-    load_data_from_zip(file_path, 'train_masks.csv.zip')
+def bce_dice_loss(y_true, y_pred):
+    loss = losses.binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
+    return loss
 
-
-def main(cluster_mode, max_epoch, file_path, batch_size):
-    if cluster_mode == "local":
-        init_orca_context(cluster_mode="local", cores=4, memory="3g")
-    elif cluster_mode == "yarn":
-        init_orca_context(cluster_mode="yarn-client", num_nodes=2, cores=2, driver_memory="3g")
-
-    load_data(file_path)
-    img_dir = os.path.join(file_path, "train")
-    label_dir = os.path.join(file_path, "train_masks")
-
-    # Here we only take the first 1000 files for simplicity
-    df_train = pd.read_csv(os.path.join(file_path, 'train_masks.csv'))
-    ids_train = df_train['img'].map(lambda s: s.split('.')[0])
-    ids_train = ids_train[:1000]
-
-    x_train_filenames = []
-    y_train_filenames = []
-    for img_id in ids_train:
-        x_train_filenames.append(os.path.join(img_dir, "{}.jpg".format(img_id)))
-        y_train_filenames.append(os.path.join(label_dir, "{}_mask.gif".format(img_id)))
-
-    x_train_filenames, x_val_filenames, y_train_filenames, y_val_filenames = \
-        train_test_split(x_train_filenames, y_train_filenames, test_size=0.2, random_state=42)
-
-    def load_and_process_image(path):
-        array = mpimg.imread(path)
-        result = np.array(Image.fromarray(array).resize(size=(128, 128)))
-        result = result.astype(float)
-        result /= 255.0
-        return result
-
-    def load_and_process_image_label(path):
-        array = mpimg.imread(path)
-        result = np.array(Image.fromarray(array).resize(size=(128, 128)))
-        result = np.expand_dims(result[:, :, 1], axis=-1)
-        result = result.astype(float)
-        result /= 255.0
-        return result
-
-    train_images = np.stack([load_and_process_image(filepath) for filepath in x_train_filenames])
-    train_label_images = np.stack([load_and_process_image_label(filepath)
-                                   for filepath in y_train_filenames])
-    val_images = np.stack([load_and_process_image(filepath) for filepath in x_val_filenames])
-    val_label_images = np.stack([load_and_process_image_label(filepath)
-                                 for filepath in y_val_filenames])
-    train_shards = XShards.partition({"x": train_images, "y": train_label_images})
-    val_shards = XShards.partition({"x": val_images, "y": val_label_images})
-
-    # Build the U-Net model
+def create_unet_model():
+        # Build the U-Net model
     def conv_block(input_tensor, num_filters):
         encoder = layers.Conv2D(num_filters, (3, 3), padding='same')(input_tensor)
         encoder = layers.Activation('relu')(encoder)
@@ -132,67 +101,65 @@ def main(cluster_mode, max_epoch, file_path, batch_size):
     outputs = layers.Conv2D(1, (1, 1), activation='sigmoid')(decoder0)
 
     net = models.Model(inputs=[inputs], outputs=[outputs])
-
-    # Define custom metrics
-    def dice_coeff(y_true, y_pred):
-        smooth = 1.
-        # Flatten
-        y_true_f = tf.reshape(y_true, [-1])
-        y_pred_f = tf.reshape(y_pred, [-1])
-        intersection = tf.reduce_sum(y_true_f * y_pred_f)
-        score = (2. * intersection + smooth) / \
-                (tf.reduce_sum(y_true_f) + tf.reduce_sum(y_pred_f) + smooth)
-        return score
-
-    # Define custom loss function
-    def dice_loss(y_true, y_pred):
-        loss = 1 - dice_coeff(y_true, y_pred)
-        return loss
-
-    def bce_dice_loss(y_true, y_pred):
-        loss = losses.binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
-        return loss
-
     # compile model
     net.compile(optimizer=tf.keras.optimizers.Adam(2e-3), loss=bce_dice_loss)
     print(net.summary())
+    return net
 
+
+    
+def main(cluster_mode, max_epoch, file_path, batch_size):
+    if cluster_mode == "local":
+        init_orca_context(cluster_mode="local", cores=4, memory="3g")
+        data_dir = "~/tensorflow_datasets"
+    elif cluster_mode == "yarn":
+        init_orca_context(cluster_mode="yarn-client", num_nodes=2, cores=2, driver_memory="3g")
+        data_dir="hdfs:///tensorflow_datasets"
+    
+    dataset_builder = Carvana(data_dir=data_dir)
+    dataset_builder.download_and_prepare()
+    train_dataset = dataset_builder.as_dataset(split="train[:80%]")
+    test_dataset = dataset_builder.as_dataset(split="train[:-20%]")
+    
+    train_dataset = train_dataset.map(preprocessing)
+    test_dataset = test_dataset.map(preprocessing)
+    
     # create an estimator from keras model
-    est = Estimator.from_keras(keras_model=net)
+    est = Estimator.from_keras(keras_model=create_unet_model())
     # fit with estimator
-    est.fit(data=train_shards,
+    est.fit(data=train_dataset,
             batch_size=batch_size,
             epochs=max_epoch)
     # evaluate with estimator
-    result = est.evaluate(val_shards)
+    result = est.evaluate(test_dataset)
     print(result)
-    # predict with estimator
-    val_shards.cache()
-    val_image_shards = val_shards.transform_shard(lambda val_dict: {"x": val_dict["x"]})
-    pred_shards = est.predict(data=val_image_shards, batch_size=batch_size)
-    pred = pred_shards.collect()[0]["prediction"]
-    val_image_label = val_shards.collect()[0]
-    val_image = val_image_label["x"]
-    val_label = val_image_label["y"]
-    # visualize 5 predicted results
-    plt.figure(figsize=(10, 20))
-    for i in range(5):
-        img = val_image[i]
-        label = val_label[i]
-        predicted_label = pred[i]
+#     # predict with estimator
+#     val_shards.cache()
+#     val_image_shards = val_shards.transform_shard(lambda val_dict: {"x": val_dict["x"]})
+#     pred_shards = est.predict(data=val_image_shards, batch_size=batch_size)
+#     pred = pred_shards.collect()[0]["prediction"]
+#     val_image_label = val_shards.collect()[0]
+#     val_image = val_image_label["x"]
+#     val_label = val_image_label["y"]
+#     # visualize 5 predicted results
+#     plt.figure(figsize=(10, 20))
+#     for i in range(5):
+#         img = val_image[i]
+#         label = val_label[i]
+#         predicted_label = pred[i]
 
-        plt.subplot(5, 3, 3 * i + 1)
-        plt.imshow(img)
-        plt.title("Input image")
+#         plt.subplot(5, 3, 3 * i + 1)
+#         plt.imshow(img)
+#         plt.title("Input image")
 
-        plt.subplot(5, 3, 3 * i + 2)
-        plt.imshow(label[:, :, 0], cmap='gray')
-        plt.title("Actual Mask")
-        plt.subplot(5, 3, 3 * i + 3)
-        plt.imshow(predicted_label, cmap='gray')
-        plt.title("Predicted Mask")
-    plt.suptitle("Examples of Input Image, Label, and Prediction")
-    plt.show()
+#         plt.subplot(5, 3, 3 * i + 2)
+#         plt.imshow(label[:, :, 0], cmap='gray')
+#         plt.title("Actual Mask")
+#         plt.subplot(5, 3, 3 * i + 3)
+#         plt.imshow(predicted_label, cmap='gray')
+#         plt.title("Predicted Mask")
+#     plt.suptitle("Examples of Input Image, Label, and Prediction")
+#     plt.show()
 
     stop_orca_context()
 
