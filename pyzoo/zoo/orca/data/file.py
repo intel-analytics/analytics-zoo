@@ -79,7 +79,7 @@ def open_image(path):
         return Image.open(path)
 
 
-def load_numpy(path):
+def load_numpy(path, allow_pickle=False):
     """
     Load arrays or pickled objects from ``.npy``, ``.npz`` or pickled files.
     It supports local, hdfs, s3 file systems.
@@ -93,7 +93,7 @@ def load_numpy(path):
         import pyarrow as pa
         fs = pa.hdfs.connect()
         with fs.open(path, 'rb') as f:
-            return np.load(f)
+            return np.load(f, allow_pickle=allow_pickle)
     elif path.startswith("s3"):  # s3://bucket/file_path
         access_key_id = os.environ["AWS_ACCESS_KEY_ID"]
         secret_access_key = os.environ["AWS_SECRET_ACCESS_KEY"]
@@ -106,9 +106,43 @@ def load_numpy(path):
         bucket = path_parts.pop(0)
         key = "/".join(path_parts)
         data = s3_client.get_object(Bucket=bucket, Key=key)
-        return np.load(BytesIO(data["Body"].read()))
+        return np.load(BytesIO(data["Body"].read()), allow_pickle=allow_pickle)
     else:  # Local path
-        return np.load(path)
+        if path.startswith("file"):
+            path = path.split(":")[1]
+        return np.load(path, allow_pickle=allow_pickle)
+
+
+def save_numpy(path, data, allow_pickle=False):
+    """
+    Save numpy arr.
+    It supports local, hdfs, s3 file systems.
+    :param path: file path
+    :param data: Array data to be saved.
+    """
+    import numpy as np
+    if path.startswith("hdfs"):  # hdfs://url:port/file_path
+        import pyarrow as pa
+        fs = pa.hdfs.connect()
+        with fs.open(path, 'wb') as f:
+            np.save(f, data, allow_pickle=allow_pickle)
+    elif path.startswith("s3"):  # s3://bucket/file_path
+        access_key_id = os.environ["AWS_ACCESS_KEY_ID"]
+        secret_access_key = os.environ["AWS_SECRET_ACCESS_KEY"]
+        import boto3
+        from io import BytesIO
+        s3_client = boto3.Session(
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key).client('s3', verify=False)
+        path_parts = path.split("://")[1].split('/')
+        bucket = path_parts.pop(0)
+        key = "/".join(path_parts)
+        array_file = BytesIO()
+        np.save(array_file, data, allow_pickle=allow_pickle)
+        array_file.seek(0)
+        s3_client.upload_fileobj(array_file, Bucket=bucket, Key=key)
+    else:  # Local path
+        np.save(path, data, allow_pickle=allow_pickle)
 
 
 def exists(path):

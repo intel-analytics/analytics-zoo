@@ -25,7 +25,7 @@ import zoo.orca.data.pandas
 from zoo.orca import OrcaContext
 from zoo.orca.data import SharedValue
 from zoo.common.nncontext import *
-from zoo.orca.data import SparkXShards
+from zoo.orca.data import SparkXShards, XShards
 
 
 class TestSparkXShards(TestCase):
@@ -178,6 +178,9 @@ class TestSparkXShards(TestCase):
         data_shard.save_pickle(path)
         shards = zoo.orca.data.XShards.load_pickle(path)
         assert isinstance(shards, zoo.orca.data.SparkXShards)
+        data = shards.rdd.first()
+        import pandas as pd
+        assert isinstance(data, pd.DataFrame)
         shutil.rmtree(temp)
 
     def test_transform(self):
@@ -335,6 +338,26 @@ class TestSparkXShards(TestCase):
         partitions2 = shard3.rdd.glom().collect()
         for par in partitions2:
             assert len(par) <= 1
+
+    def test_save_load_np(self):
+        import tempfile
+        temp = tempfile.mkdtemp()
+        file_path = os.path.join(self.resource_path, "orca/data/csv")
+        data_shard = zoo.orca.data.pandas.read_csv(file_path)
+
+        def transform(df):
+            result = df['ID'].to_numpy()
+            return result
+
+        data_shard = data_shard.transform_shard(transform)
+        path = os.path.join(temp, "data_np")
+        data_shard.save_as_numpy(path)
+
+        shards = XShards.load_numpy(path)
+        assert shards._get_class_name() == "numpy.ndarray"
+        data = shards.collect()[0]
+        assert len(data.shape) == 1
+        shutil.rmtree(temp)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ from zoo.orca import OrcaContext
 from zoo.common.nncontext import init_nncontext
 from zoo import ZooContext, get_node_and_core_number
 from zoo.util import nest
+from zoo.orca.data.file import load_numpy, save_numpy, exists, makedirs
 
 
 class XShards(object):
@@ -59,6 +60,39 @@ class XShards(object):
         """
         sc = init_nncontext()
         return SparkXShards(sc.pickleFile(path, minPartitions))
+
+    @classmethod
+    def load_numpy(cls, path, minPartitions=None):
+        """
+        Load XShards from pickle files.
+        :param path: The pickle file path/directory
+        :param minPartitions: The minimum partitions for the XShards
+        :return: SparkXShards object
+        """
+        sc = init_nncontext()
+        file_paths = get_file_list(path)
+        if not file_paths:
+            raise Exception("The file path is invalid or empty, please check your data")
+        if minPartitions is None:
+            num_files = len(file_paths)
+            node_num, core_num = get_node_and_core_number()
+            total_cores = node_num * core_num
+            num_partitions = num_files if num_files < total_cores else total_cores
+        else:
+            num_partitions = minPartitions
+        rdd = sc.parallelize(file_paths, num_partitions)
+
+        def load_np(iter):
+            data_list = []
+            for path in iter:
+                data = load_numpy(path, allow_pickle=False)
+                data_list.append(data)
+            if len(data_list) > 0 :
+                yield merge(data_list)
+            else:
+                yield iter
+        rdd = rdd.mapPartitions(load_np)
+        return SparkXShards(rdd)
 
     @staticmethod
     def partition(data):
@@ -444,6 +478,31 @@ class SparkXShards(XShards):
         """
         self.rdd.saveAsPickleFile(path, batchSize)
         return self
+
+    def save_as_numpy(self, path):
+        if path.startswith("/"):
+            import re
+            if re.match(r"local\[(.*)\]", self.rdd.context.master) is None:
+                raise Exception("save XShards to local numpy files only support spark local mode.")
+        if self._get_class_name() == "numpy.ndarray":
+            if not exists(path):
+                makedirs(path)
+
+            def save(path):
+                def save_func(index, iterator):
+                    data = list(iterator)
+                    assert len(data) <= 1
+
+                    if len(data) == 1:
+                        save_numpy(os.path.join(path, str(index) + ".npy"), data[0])
+                    yield 0
+
+                return save_func
+
+            self.rdd.mapPartitionsWithIndex(save(path)).collect()
+            return self
+        else:
+            raise Exception("save_numpy can only support XShards of numpy ndarray")
 
     def __del__(self):
         self.uncache()

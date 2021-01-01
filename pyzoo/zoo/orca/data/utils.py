@@ -15,6 +15,9 @@
 #
 import os
 import numpy as np
+import tempfile
+import shutil
+import pickle
 
 from zoo.common import get_file_list
 
@@ -268,6 +271,32 @@ def _convert_list_tuple(data, allow_tuple, allow_list):
         if not allow_tuple and allow_list:
             return list(data)
     return data
+
+
+def merge(data_list):
+    classnames = [get_class_name(data) for data in data_list]
+    assert classnames.count(get_class_name(data_list[0])) == len(classnames), \
+    "should merge same type of data"
+    if isinstance(data_list[0], np.ndarray):
+        return np.concatenate(data_list, axis=0)
+    elif isinstance(data_list[0], dict):
+        result = {}
+        for key in data_list[0]:
+            if isinstance(data_list[0][key], (list, tuple)):
+                value_list = [data[key] for data in data_list]
+                merged_value = [np.concatenate([value[i] for value in value_list], axis=0) for i in range(len(value_list[0]))]
+                if isinstance(data_list[0][key], tuple):
+                    merged_value = tuple(merged_value)
+                result[key] = merged_value
+            elif isinstance(data_list[0][key], np.ndarray):
+                merged_value = np.concatenate([data[key] for data in data_list], axis=0)
+                result[key] = merged_value
+        return result
+    elif get_class_name(data_list[0]) == 'pandas.core.frame.DataFrame':
+        import pandas as pd
+        return pd.concat(data_list)
+    else:
+        raise Exception("Only support merge numpy.ndarray and dictionary of numpy ndarray and pandas dataframe.")
 
 
 def process_spark_xshards(spark_xshards, num_workers):

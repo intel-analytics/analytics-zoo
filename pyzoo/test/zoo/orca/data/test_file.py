@@ -18,7 +18,8 @@ import os.path
 import shutil
 import tempfile
 
-from zoo.orca.data.file import open_image, open_text, load_numpy, exists, makedirs, write_text
+from zoo.orca.data.file import open_image, open_text, load_numpy, exists, makedirs,\
+    write_text, save_numpy
 
 
 class TestFile:
@@ -122,3 +123,28 @@ class TestFile:
                 aws_access_key_id=access_key_id,
                 aws_secret_access_key=secret_access_key).client('s3', verify=False)
             s3_client.delete_object(Bucket='analytics-zoo-data', Key='test.txt')
+
+    def test_save_local_numpy(self):
+        import numpy as np
+        arr = np.array([1, 2])
+        temp = tempfile.mkdtemp()
+        file_path = os.path.join(temp, "a.npy")
+        save_numpy(file_path, arr)
+        res = load_numpy(file_path)
+        assert res.shape == (2,)
+
+    def test_load_s3_numpy(self):
+        access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+        secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+        if access_key_id and secret_access_key:
+            file_path = "s3://analytics-zoo-data/test.npy"
+            import numpy as np
+            arr = np.array([1, 2])
+            save_numpy(file_path, arr)
+            res = load_numpy(file_path)
+            import boto3
+            s3_client = boto3.Session(
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_access_key).client('s3', verify=False)
+            s3_client.delete_object(Bucket='analytics-zoo-data', Key='test.npy')
+            assert res.shape == (2,)
