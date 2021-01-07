@@ -47,6 +47,7 @@ from zoo.orca.learn.pytorch.constants import SCHEDULER_STEP, NUM_STEPS
 from zoo.orca.learn.pytorch.training_operator import TrainingOperator
 from zoo.orca.learn.pytorch import utils
 from zoo.orca.learn.pytorch.utils import find_free_port
+from zoo.orca.data.partition_holder import PartitionHolder
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ except ImportError:
     from collections import Iterable
 
 
-class TorchRunner:
+class TorchRunner(PartitionHolder):
     """Manages a PyTorch model for training."""
 
     def __init__(self,
@@ -68,6 +69,7 @@ class TorchRunner:
                  config=None,
                  use_tqdm=False,
                  scheduler_step_freq=None):
+        super().__init__()
         self.model_creator = model_creator
         self.optimizer_creator = optimizer_creator
         self.loss_creator = loss_creator
@@ -251,12 +253,16 @@ class TorchRunner:
         config = self.config.copy()
         if "batch_size" not in config:
             config["batch_size"] = batch_size
-        if OrcaContext.serialize_data_creator:
-            with FileLock(
-                    os.path.join(tempfile.gettempdir(), ".orcadata.lock")):
-                loader = data_creator(config)
+        if isinstance(data_creator, tuple):
+            feature_cols, label_cols = data_creator
+            loader = self.to_torch_loader(feature_cols, label_cols, batch_size)
         else:
-            loader = data_creator(config)
+            if OrcaContext.serialize_data_creator:
+                with FileLock(
+                        os.path.join(tempfile.gettempdir(), ".orcadata.lock")):
+                    loader = data_creator(config)
+            else:
+                loader = data_creator(config)
 
         if wrap_dataloader is None:
             if TorchRunner.should_wrap_dataloader(loader):

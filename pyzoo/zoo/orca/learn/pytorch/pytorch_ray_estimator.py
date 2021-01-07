@@ -21,6 +21,7 @@ import numbers
 import torch
 import numpy as np
 
+from zoo.orca.data.utils import write_to_ray_python_client
 from zoo.orca.learn.pytorch.training_operator import TrainingOperator
 from zoo.orca.learn.pytorch.torch_runner import TorchRunner
 from zoo.ray import RayContext
@@ -101,7 +102,8 @@ class PyTorchRayEstimator:
             workers_per_node=1):
 
         # todo remove ray_ctx to run on workers
-        ray_ctx = RayContext.get()
+        super().__init__()
+        self.ray_ctx = RayContext.get()
         if not (isinstance(model_creator, types.FunctionType) and
                 isinstance(optimizer_creator, types.FunctionType)):  # Torch model is also callable.
             raise ValueError(
@@ -133,8 +135,8 @@ class PyTorchRayEstimator:
             config=worker_config)
 
         if backend == "torch_distributed":
-            cores_per_node = ray_ctx.ray_node_cpu_cores // workers_per_node
-            num_nodes = ray_ctx.num_ray_nodes * workers_per_node
+            cores_per_node = self.ray_ctx.ray_node_cpu_cores // workers_per_node
+            num_nodes = self.ray_ctx.num_ray_nodes * workers_per_node
             RemoteRunner = ray.remote(num_cpus=cores_per_node)(TorchRunner)
             self.remote_workers = [
                 RemoteRunner.remote(**params) for i in range(num_nodes)
@@ -156,7 +158,7 @@ class PyTorchRayEstimator:
 
         elif backend == "horovod":
             from zoo.orca.learn.horovod.horovod_ray_runner import HorovodRayRunner
-            self.horovod_runner = HorovodRayRunner(ray_ctx,
+            self.horovod_runner = HorovodRayRunner(self.ray_ctx,
                                                    worker_cls=TorchRunner,
                                                    worker_param=params,
                                                    workers_per_node=workers_per_node)
@@ -182,12 +184,16 @@ class PyTorchRayEstimator:
               batch_size=32,
               profile=False,
               reduce_results=True,
-              info=None):
+              info=None,
+              feature_cols=None,
+              label_cols=None,):
         """
         See the documentation in
         'zoo.orca.learn.pytorch.estimator.PyTorchRayEstimatorWrapper.fit'.
         """
         from zoo.orca.data import SparkXShards
+        from pyspark.sql import DataFrame
+
         if isinstance(data, SparkXShards):
             from zoo.orca.data.utils import process_spark_xshards
             ray_xshards = process_spark_xshards(data, self.num_workers)
@@ -202,10 +208,37 @@ class PyTorchRayEstimator:
                                                                     transform_func,
                                                                     gang_scheduling=True)
             worker_stats = stats_shards.collect_partitions()
+
+        elif isinstance(data, DataFrame):
+            assert feature_cols is not None, \
+                "feature_col must be provided if data_creator is a spark dataframe"
+            assert label_cols is not None, \
+                "label_cols must be provided if data_creator is a spark dataframe"
+            df = data
+            schema = df.schema
+
+            ip_ports = ray.get([worker.start_data_receiver.remote()
+                                for worker in self.remote_workers])
+            address = self.ray_ctx.redis_address
+            sent_counts = df.rdd.mapPartitionsWithIndex(
+                lambda idx, part: write_to_ray_python_client(
+                    idx, part, address, dict(ip_ports), schema)).collect()
+            received_counts = ray.get([worker.done_with_sending.remote()
+                                       for worker in self.remote_workers])
+            assert sent_counts == received_counts, \
+                f"Sanity Check Failed: The number of record sent is {sent_counts} while the " \
+                f"number of records received is {received_counts}. " \
+                f"Please raise an issue if you meet this error."
+            data = (feature_cols, label_cols)
+            success, worker_stats = self._train_epochs(data,
+                                                       epochs=epochs,
+                                                       batch_size=batch_size,
+                                                       profile=profile,
+                                                       info=info)
         else:
             assert isinstance(data, types.FunctionType), \
-                "data should be either an instance of SparkXShards or a callable function, but " \
-                "got type: {}".format(type(data))
+                "data should be an instance of SparkXShards or an instance of Spark DataFrame or " \
+                "a callable function, but got type: {}".format(type(data))
 
             success, worker_stats = self._train_epochs(data,
                                                        epochs=epochs,

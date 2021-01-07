@@ -17,6 +17,9 @@ import os
 import numpy as np
 
 from zoo.common import get_file_list
+import pyarrow as pa
+
+from zoo.util.utils import get_node_ip
 
 
 def list_s3_file(file_path, env):
@@ -309,3 +312,105 @@ def get_size(x):
         raise ValueError(
             "data should be an ndarray, a dict of ndarrays, a tuple of ndarrays"
             " or a list of ndarrays, please check your input")
+
+class ArrowBatchBuilder:
+
+    def __init__(self, schema):
+        self.schema = schema
+        self.data = [[] for i in range(len(self.schema))]
+
+    def append_record(self, row):
+        for idx, field in enumerate(self.schema):
+            value = row[field.name]
+            self.data[idx].append(value)
+
+    def to_batch(self):
+        batch = pa.record_batch(self.data, schema=self.schema)
+        return batch
+
+    def reset(self):
+        for l in self.data:
+            l.clear()
+
+
+def deserialize_using_pa_stream(pybytes):
+    # deserialize a list of rows from bytes
+    buff = pa.py_buffer(pybytes)
+    reader = pa.ipc.open_stream(buff)
+    batches = [batch for batch in reader]
+    return batches
+
+
+def serialize_using_pa_stream(rows, schema):
+    # serialize a list of rows to bytes
+    sink = pa.BufferOutputStream()
+    writer = pa.ipc.new_stream(sink, schema)
+    arrow_batch_builder = ArrowBatchBuilder(schema)
+    for row in rows:
+        arrow_batch_builder.append_record(row)
+    writer.write_batch(arrow_batch_builder.to_batch())
+    writer.close()
+    buf = sink.getvalue()
+    return buf.to_pybytes()
+
+
+def write_to_ray_python_client(idx, partition, redis_address, ip2port, schema):
+    """
+    used in mapwithPartitionIndex in pyspark process.
+    create a client in pyspark process for each partition
+    :param idx: partition index
+    :param partition: partition content
+    :param redis_address: ray redis address
+    :param ip2port: {ip: port for each ray actor}
+    :param schema: df schema
+    """
+    from multiprocessing.connection import Client
+    from pyspark.sql.types import to_arrow_schema
+
+    # find ip that ray used by connecting to redis.
+    redis_host, redis_port = redis_address.split(":")
+    ip = get_node_ip(redis_host)
+    port = ip2port[ip]
+    address = ("localhost", port)
+    pa_schema = to_arrow_schema(schema)
+
+    import time
+    counter = 0
+    serialize_time = 0.0
+    sending_time = 0.0
+    total_bytes = 0
+    with Client(address) as conn:
+        conn.send(idx)
+        batch = []
+        for item in partition:
+            batch.append(item)
+            # serialize for every 500k records
+            if len(batch) == 500000:
+                start = time.time()
+                pybytes = serialize_using_pa_stream(batch, pa_schema)
+                end1 = time.time()
+                total_bytes += len(pybytes)
+                serialize_time += end1 - start
+                conn.send(pybytes)
+                end2 = time.time()
+                sending_time += end2 - end1
+                counter += 500000
+                batch.clear()
+        # serialize for the last batch with less than 500k records
+        if len(batch) > 0:
+            start = time.time()
+            pybytes = serialize_using_pa_stream(batch, pa_schema)
+            total_bytes += len(pybytes)
+            end1 = time.time()
+            conn.send(pybytes)
+            end2 = time.time()
+            serialize_time += end1 - start
+            sending_time += end2 - end1
+            counter += len(batch)
+        # use None as end indicator
+        conn.send(None)
+        print(
+            f"total serilaize time {serialize_time}, total send time {sending_time}, total records "
+            f"{counter}, total bytes {total_bytes}")
+
+    return [counter]

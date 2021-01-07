@@ -32,7 +32,7 @@ def to_sample_rdd(x, y, sc, num_slices=None):
     return x_rdd.zip(y_rdd).map(lambda item: Sample.from_ndarray(item[0], item[1]))
 
 
-def get_node_ip():
+def get_node_ip(node_ip="8.8.8.8"):
     """
     This function is ported from ray to get the ip of the current node. In the settings where
     Ray is not involved, calling ray.services.get_node_ip_address would introduce Ray overhead.
@@ -42,7 +42,7 @@ def get_node_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         # This command will raise an exception if there is no internet connection.
-        s.connect(("8.8.8.8", 80))
+        s.connect((node_ip, 80))
         node_ip_address = s.getsockname()[0]
     except OSError as e:
         node_ip_address = "127.0.0.1"
