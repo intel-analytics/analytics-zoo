@@ -8,11 +8,11 @@ from zoo.orca.learn.pytorch.utils import find_free_port
 
 class PartitionHolder:
     # for ray actor
-    def __init__(self):
+    def __init__(self, max_connections=8):
         import queue
         from concurrent.futures import ThreadPoolExecutor
         self.data_queue = queue.Queue()
-        self.executor = ThreadPoolExecutor(max_workers=44)
+        self.executor = ThreadPoolExecutor(max_workers=max_connections)
         self.data_dict = {}
 
     def start_data_receiver(self):
@@ -160,6 +160,7 @@ def numpy_to_torch_data_loader(data, label, params):
     return data_loader
 
 
+# todo: remove after test is done.
 def spark_rdd_python_server(df):
     def get_ray_node_ip():
         driver_ip = ray.services.get_node_ip_address()
@@ -184,8 +185,7 @@ def spark_rdd_python_server(df):
 
     partition_holders = [ray.remote(num_cpus=0, resources={node: 1e-4})(PartitionHolder).remote()
                          for node in nodes]
-    ray.get([holder.start_data_receiver.remote() for holder in partition_holders])
-    ip_ports = ray.get([holder.get_ip_port.remote() for holder in partition_holders])
+    ip_ports = ray.get([holder.start_data_receiver.remote() for holder in partition_holders])
 
     schema = df.schema
 

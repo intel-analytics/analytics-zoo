@@ -132,7 +132,9 @@ class PyTorchRayEstimator:
             training_operator_cls=self.training_operator_cls,
             scheduler_step_freq=self.scheduler_step_freq,
             use_tqdm=self.use_tqdm,
-            config=worker_config)
+            config=worker_config,
+            ray_node_cpu_cores=self.ray_ctx.ray_node_cpu_cores,
+        )
 
         if backend == "torch_distributed":
             cores_per_node = self.ray_ctx.ray_node_cpu_cores // workers_per_node

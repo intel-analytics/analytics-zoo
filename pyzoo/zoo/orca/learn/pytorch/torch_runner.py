@@ -63,13 +63,14 @@ class TorchRunner(PartitionHolder):
     def __init__(self,
                  model_creator,
                  optimizer_creator,
+                 ray_node_cpu_cores,
                  loss_creator=None,
                  scheduler_creator=None,
                  training_operator_cls=None,
                  config=None,
                  use_tqdm=False,
                  scheduler_step_freq=None):
-        super().__init__()
+        super().__init__(max_connections=ray_node_cpu_cores)
         self.model_creator = model_creator
         self.optimizer_creator = optimizer_creator
         self.loss_creator = loss_creator
