@@ -21,7 +21,6 @@ import numbers
 import torch
 import numpy as np
 
-from zoo.orca.data.utils import write_to_ray_python_client
 from zoo.orca.learn.pytorch.training_operator import TrainingOperator
 from zoo.orca.learn.pytorch.torch_runner import TorchRunner
 from zoo.ray import RayContext
@@ -211,37 +210,20 @@ class PyTorchRayEstimator:
                                                                     gang_scheduling=True)
             worker_stats = stats_shards.collect_partitions()
 
-        elif isinstance(data, DataFrame):
-            assert feature_cols is not None, \
-                "feature_col must be provided if data_creator is a spark dataframe"
-            assert label_cols is not None, \
-                "label_cols must be provided if data_creator is a spark dataframe"
-            df = data
-            schema = df.schema
-
-            ip_ports = ray.get([worker.start_data_receiver.remote()
-                                for worker in self.remote_workers])
-            address = self.ray_ctx.redis_address
-            sent_counts = df.rdd.mapPartitionsWithIndex(
-                lambda idx, part: write_to_ray_python_client(
-                    idx, part, address, dict(ip_ports), schema)).collect()
-            received_counts = ray.get([worker.done_with_sending.remote()
-                                       for worker in self.remote_workers])
-            assert sent_counts == received_counts, \
-                f"Sanity Check Failed: The number of record sent is {sent_counts} while the " \
-                f"number of records received is {received_counts}. " \
-                f"Please raise an issue if you meet this error."
-            data = (feature_cols, label_cols)
-            success, worker_stats = self._train_epochs(data,
-                                                       epochs=epochs,
-                                                       batch_size=batch_size,
-                                                       profile=profile,
-                                                       info=info)
         else:
-            assert isinstance(data, types.FunctionType), \
-                "data should be an instance of SparkXShards or an instance of Spark DataFrame or " \
-                "a callable function, but got type: {}".format(type(data))
+            if isinstance(data, DataFrame):
+                from zoo.orca.learn.utils import spark_dataframe_python_server
+                assert feature_cols is not None, \
+                    "feature_col must be provided if data_creator is a spark dataframe"
+                assert label_cols is not None, \
+                    "label_cols must be provided if data_creator is a spark dataframe"
 
+                data = spark_dataframe_python_server(data, feature_cols, label_cols,
+                                                     self.remote_workers, self.ray_ctx)
+            else:
+                assert isinstance(data, types.FunctionType), \
+                    "data should be an instance of SparkXShards or an instance of Spark DataFrame" \
+                    " or a callable function, but got type: {}".format(type(data))
             success, worker_stats = self._train_epochs(data,
                                                        epochs=epochs,
                                                        batch_size=batch_size,

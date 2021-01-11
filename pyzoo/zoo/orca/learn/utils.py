@@ -79,3 +79,25 @@ def convert_predict_to_xshard(prediction_rdd):
             return [{'prediction': np.array(predictions)}]
 
     return SparkXShards(prediction_rdd.mapPartitions(transform_predict))
+
+
+def spark_dataframe_python_server(df, feature_cols, label_cols, remote_workers, ray_ctx):
+    import ray
+    from zoo.orca.data.utils import write_to_ray_python_client
+
+    schema = df.schema
+
+    ip_ports = ray.get([worker.start_data_receiver.remote()
+                        for worker in remote_workers])
+    address = ray_ctx.redis_address
+    sent_counts = df.rdd.mapPartitionsWithIndex(
+        lambda idx, part: write_to_ray_python_client(
+            idx, part, address, dict(ip_ports), schema)).collect()
+    received_counts = ray.get([worker.done_with_sending.remote()
+                               for worker in remote_workers])
+    assert sent_counts == received_counts, \
+        f"Sanity Check Failed: The number of record sent is {sent_counts} while the " \
+        f"number of records received is {received_counts}. " \
+        f"Please raise an issue if you meet this error."
+    data = (feature_cols, label_cols)
+    return data
