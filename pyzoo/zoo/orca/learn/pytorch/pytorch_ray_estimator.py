@@ -214,9 +214,9 @@ class PyTorchRayEstimator:
             if isinstance(data, DataFrame):
                 from zoo.orca.learn.utils import spark_dataframe_python_server
                 assert feature_cols is not None, \
-                    "feature_col must be provided if data_creator is a spark dataframe"
+                    "feature_col must be provided if data is a spark dataframe"
                 assert label_cols is not None, \
-                    "label_cols must be provided if data_creator is a spark dataframe"
+                    "label_cols must be provided if data is a spark dataframe"
 
                 data = spark_dataframe_python_server(data, feature_cols, label_cols,
                                                      self.remote_workers, self.ray_ctx)
