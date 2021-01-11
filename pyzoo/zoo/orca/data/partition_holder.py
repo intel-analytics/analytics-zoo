@@ -61,9 +61,9 @@ class PartitionHolder:
                 data = queue.get()
                 if data is None:
                     end = time.time()
-                    for idx, data in data_dict.items():
-                        table = pa.Table.from_batches(batches=data)
-                        data_dict[idx] = table
+                    # for idx, data in data_dict.items():
+                    #     table = pa.Table.from_batches(batches=data)
+                    #     data_dict[idx] = table
                     print(f"done deserializing, using {end - start}s")
                     break
                 else:
@@ -89,9 +89,75 @@ class PartitionHolder:
 
         return total
 
-    def to_torch_train_loader(self, feature_cols, label_cols, batch_size):
-        # TODO: convert self.data_dict to torch loader
-        pass
+    def data_dict_to_torch_loader(self, feature_cols, label_cols, config):
+        assert "batch_size" in config, "batch_size must be set in config"
+        params = {"batch_size": config["batch_size"], "shuffle": True}
+        for arg in ["shuffle", "sampler", "batch_sampler", "num_workers", "collate_fn",
+                    "pin_memory", "drop_last", "timeout", "worker_init_fn",
+                    "multiprocessing_context"]:
+            if arg in config:
+                params[arg] = config[arg]
+        data, label = data_dict_to_np(self.data_dict, feature_cols, label_cols)
+        print("Data size on worker: ", len(label))
+        data_loader = numpy_to_torch_data_loader(data, label, params)
+        return data_loader
+
+
+def data_dict_to_np(data_dict, feature_cols, label_cols):
+    # data_dict is a dict with key of partition index, value of a list of pyarrow RecordBatches
+    import numpy as np
+    import pyarrow as pa
+
+    def list_column_to_array(pa_array):
+        return pa_array.flatten().to_numpy().reshape((len(pa_array), -1))
+
+    def non_list_column_to_array(pa_array):
+        return pa_array.to_numpy()
+
+    def batches_to_np(batches, cols):
+        result_dict = {}
+        batch = batches[0]
+        for i, field in enumerate(batch.schema):
+            if field.name not in cols:
+                continue
+            # TODO: add input format check, we support a list of array and array only
+            if isinstance(field.type, pa.ListType):
+                data = np.concatenate([list_column_to_array(batch.column(i)) for batch in batches])
+            else:
+                data = np.concatenate([non_list_column_to_array(batch.column(i))
+                                       for batch in batches])
+            result_dict[field] = data
+            return result_dict
+
+    pa_batches = []
+    for i, part in data_dict:
+        pa_batches.extend(part)
+
+    cols = feature_cols + label_cols
+    result_dict = batches_to_np(pa_batches, cols)
+    data = [v for k, v in result_dict if k in feature_cols]
+    label = [v for k, v in result_dict if k in label_cols]
+
+    return data, label
+
+
+def numpy_to_torch_data_loader(data, label, params):
+    from torch.utils.data import Dataset, DataLoader
+    from zoo.orca.data.utils import index_data, get_size
+
+    class NDArrayDataset(Dataset):
+        def __init__(self, x, y):
+            self.x = x  # features
+            self.y = y  # labels
+
+        def __len__(self):
+            return get_size(self.y)
+
+        def __getitem__(self, i):
+            return index_data(self.x, i), index_data(self.y, i)
+    dataset = NDArrayDataset(data, label)
+    data_loader = DataLoader(dataset, **params)
+    return data_loader
 
 
 def spark_rdd_python_server(df):

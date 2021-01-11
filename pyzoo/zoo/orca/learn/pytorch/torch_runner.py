@@ -255,14 +255,13 @@ class TorchRunner(PartitionHolder):
             config["batch_size"] = batch_size
         if isinstance(data_creator, tuple):
             feature_cols, label_cols = data_creator
-            loader = self.to_torch_loader(feature_cols, label_cols, batch_size)
-        else:
-            if OrcaContext.serialize_data_creator:
-                with FileLock(
-                        os.path.join(tempfile.gettempdir(), ".orcadata.lock")):
-                    loader = data_creator(config)
-            else:
+            loader = self.data_dict_to_torch_loader(feature_cols, label_cols, config)
+        elif OrcaContext.serialize_data_creator:
+            with FileLock(
+                    os.path.join(tempfile.gettempdir(), ".orcadata.lock")):
                 loader = data_creator(config)
+        else:
+            loader = data_creator(config)
 
         if wrap_dataloader is None:
             if TorchRunner.should_wrap_dataloader(loader):
