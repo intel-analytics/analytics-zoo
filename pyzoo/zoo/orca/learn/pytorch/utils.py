@@ -224,7 +224,7 @@ class AverageMeterCollection:
         stats = {BATCH_COUNT: self._batch_count, NUM_SAMPLES: self.n}
         for metric, meter in self._meters.items():
             stats[str(metric)] = meter.avg
-            stats["last_" + str(metric)] = meter.val
+            # stats["last_" + str(metric)] = meter.val
         return stats
 
 

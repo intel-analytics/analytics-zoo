@@ -34,7 +34,7 @@
 import collections
 import torch
 
-from zoo.orca.learn.pytorch.utils import (TimerCollection, AverageMeterCollection,
+from zoo.orca.learn.pytorch.utils import (TimerCollection, AverageMeterCollection, AverageMeter,
                                           NUM_SAMPLES)
 from zoo.orca.learn.pytorch.constants import (SCHEDULER_STEP_EPOCH, NUM_STEPS,
                                               SCHEDULER_STEP_BATCH, SCHEDULER_STEP)
@@ -137,7 +137,7 @@ class TrainingOperator:
         """
         pass
 
-    def train_epoch(self, iterator, info):
+    def train_epoch(self, iterator, info, val_iter, val_steps):
         """Runs one standard training pass over the training dataloader.
 
         By default, this method will iterate over the given iterator and
@@ -193,13 +193,35 @@ class TrainingOperator:
         metric_meters = AverageMeterCollection()
 
         self.model.train()
+        total_time = 0
         for batch_idx, batch in enumerate(iterator):
             batch_info = {
                 "batch_idx": batch_idx,
                 "global_step": self.global_step
             }
             batch_info.update(info)
+            import time
+            t1 = time.time()
             metrics = self.train_batch(batch, batch_info=batch_info)
+
+            if self.scheduler and batch_info.get(
+                    SCHEDULER_STEP) == SCHEDULER_STEP_BATCH:
+                scheduler_start = time.time()
+                self.scheduler.step()
+                scheduler_end = time.time()
+                print("Scheduler time: ", (scheduler_end - scheduler_start) * 1000)
+
+            t2 = time.time()
+            batch_time = (t2 - t1) * 1000
+            print(batch_time)
+            total_time += batch_time
+
+            if (batch_idx + 1) % 50 == 0:
+                batch_time_average = total_time / 50
+                total_time = 0
+                print("*********************************************")
+                print("Average for 100 batches: ", batch_time_average)
+                print("*********************************************")
 
             if self.use_tqdm and self.world_rank == 0:
                 _progress_bar.n = batch_idx + 1
@@ -208,12 +230,13 @@ class TrainingOperator:
                     postfix.update(loss=metrics["train_loss"])
                 _progress_bar.set_postfix(postfix)
 
-            if self.scheduler and batch_info.get(
-                    SCHEDULER_STEP) == SCHEDULER_STEP_BATCH:
-                self.scheduler.step()
-
             metric_meters.update(metrics, n=metrics.pop(NUM_SAMPLES, 1))
             self.global_step += 1
+
+            if val_iter:
+                if (val_steps is not None and (batch_idx + 1) % val_steps == 0) \
+                        or (batch_idx == len(iterator) - 1):
+                    print(self.validate(val_iter, {}))
 
         if self.scheduler and info.get(SCHEDULER_STEP) == SCHEDULER_STEP_EPOCH:
             self.scheduler.step()
@@ -265,14 +288,21 @@ class TrainingOperator:
             ]
             target = target.cuda(non_blocking=True)
 
+        import time
         # Compute output.
         with self.timers.record("fwd"):
+            forward_start = time.time()
             output = self.model(*features)
+            forward_end = time.time()
+            print("Forward time: ", (forward_end - forward_start) * 1000)
             if isinstance(output, tuple) or isinstance(output, list):
                 # Then target is also assumed to be a tuple or list.
                 loss = self.criterion(*output, *target)
             else:
+                loss_start = time.time()
                 loss = self.criterion(output, target)
+                loss_end = time.time()
+                print("Calculate loss time: ", (loss_end - loss_start) * 1000)
 
         # Compute gradients in a backward pass.
         with self.timers.record("grad"):
@@ -281,11 +311,17 @@ class TrainingOperator:
                 with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
             else:
+                backward_start = time.time()
                 loss.backward()
+                backward_end = time.time()
+                print("Backward time: ", (backward_end - backward_start) * 1000)
 
         # Call step of optimizer to update model params.
         with self.timers.record("apply"):
+            optimize_start = time.time()
             self.optimizer.step()
+            optimize_end = time.time()
+            print("Optimize time: ", (optimize_end - optimize_start) * 1000)
 
         return {"train_loss": loss.item(), NUM_SAMPLES: features[0].size(0)}
 
@@ -316,13 +352,24 @@ class TrainingOperator:
 
         # switch to evaluate mode
         self.model.eval()
+        scores = []
+        targets = []
         with torch.no_grad():
             for batch_idx, batch in enumerate(val_iterator):
                 batch_info = {"batch_idx": batch_idx}
                 batch_info.update(info)
                 metrics = self.validate_batch(batch, batch_info)
+                scores.append(metrics.pop("output", None))
+                targets.append(metrics.pop("target", None))
                 metric_meters.update(metrics, n=metrics.pop(NUM_SAMPLES, 1))
-
+        import numpy as np
+        import sklearn.metrics
+        scores = np.concatenate(scores, axis=0)
+        targets = np.concatenate(targets, axis=0)
+        roc_auc = sklearn.metrics.roc_auc_score(targets, scores)
+        meter = AverageMeter()
+        meter.avg = roc_auc
+        metric_meters._meters["roc_auc"] = meter
         return metric_meters.summary()
 
     def validate_batch(self, batch, batch_info):
@@ -382,14 +429,16 @@ class TrainingOperator:
                           "validate_batch in TrainingOperator for other validation metrics")
         import numpy as np
         if len(np_output.shape) == 1:  # Binary classification
-            np_output = np.round(np_output, 0)
+            predictions = np.round(np_output, 0)
         else:  # Multi-class classification
-            np_output = np.argmax(np_output, axis=1)
+            predictions = np.argmax(np_output, axis=1)
 
-        num_correct = np.sum(np_output == np_target)
+        num_correct = np.sum(predictions == np_target)
         num_samples = target.size(0)
 
         return {
+            "output": np_output,
+            "target": np_target,
             "val_loss": loss.item(),
             "val_accuracy": num_correct / num_samples,
             NUM_SAMPLES: num_samples

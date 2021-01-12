@@ -90,7 +90,8 @@ class PyTorchRayEstimator(OrcaRayEstimator):
                                              backend=backend,
                                              workers_per_node=workers_per_node)
 
-    def fit(self, data, epochs=1, batch_size=32, profile=False, reduce_results=True, info=None):
+    def fit(self, data, epochs=1, batch_size=32, profile=False, reduce_results=True, info=None,
+            validation_data=None, validation_steps=None):
         """
         Trains a PyTorch model given training data for several epochs.
 
@@ -119,7 +120,8 @@ class PyTorchRayEstimator(OrcaRayEstimator):
         creating the Estimator.
         """
         return self.estimator.train(data=data, epochs=epochs, batch_size=batch_size,
-                                    profile=profile, reduce_results=reduce_results, info=info)
+                                    profile=profile, reduce_results=reduce_results, info=info,
+                                    validation_data=validation_data, validation_steps=validation_steps)
 
     def predict(self, data, batch_size=32, **kwargs):
         raise NotImplementedError

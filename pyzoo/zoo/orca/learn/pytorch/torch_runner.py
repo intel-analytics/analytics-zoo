@@ -247,7 +247,7 @@ class TorchRunner:
                 and not_iterable)
 
     def train_epochs(self, data_creator, epochs=1, batch_size=32, profile=False,
-                     info=None, wrap_dataloader=None):
+                     info=None, wrap_dataloader=None, validation_data_creator=None, validation_steps=None):
         config = self.config.copy()
         if "batch_size" not in config:
             config["batch_size"] = batch_size
@@ -263,16 +263,35 @@ class TorchRunner:
                 loader = self.with_sampler(loader)
         elif wrap_dataloader is True:
             loader = self.with_sampler(loader)
+
+        if validation_data_creator:
+            if OrcaContext.serialize_data_creation:
+                with FileLock(
+                        os.path.join(tempfile.gettempdir(), ".orcadata.lock")):
+                    validation_loader = data_creator(config)
+            else:
+                validation_loader = data_creator(config)
+
+            if wrap_dataloader is None:
+                if TorchRunner.should_wrap_dataloader(validation_loader):
+                    validation_loader = self.with_sampler(validation_loader)
+            elif wrap_dataloader is True:
+                validation_loader = self.with_sampler(validation_loader)
+        else:
+            validation_loader = None
         stats_list = list()
         for i in range(epochs):
-            stats = self.train_epoch(loader, profile=profile, info=info)
+            stats = self.train_epoch(loader, profile=profile, info=info, validation_data_loader=validation_loader,
+                                     validation_steps=validation_steps)
             stats_list.append(stats)
         return stats_list
 
     def train_epoch(self,
                     data_loader,
                     profile=False,
-                    info=None):
+                    info=None,
+                    validation_data_loader=None,
+                    validation_steps=None):
         """Runs a training epoch and updates the model parameters."""
         if hasattr(self.train_loader, "sampler") and hasattr(
                 self.train_loader.sampler, "set_epoch"):
@@ -286,7 +305,7 @@ class TorchRunner:
         })
         with self.timers.record("train_epoch"):
             data_loader = iter(data_loader)
-            train_stats = self.training_operator.train_epoch(data_loader, info)
+            train_stats = self.training_operator.train_epoch(data_loader, info, validation_data_loader, validation_steps)
 
         self.epochs += 1
         # This is so that `epochs` is first in ordering.

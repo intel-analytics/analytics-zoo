@@ -182,7 +182,10 @@ class PyTorchRayEstimator:
               batch_size=32,
               profile=False,
               reduce_results=True,
-              info=None):
+              info=None,
+              # TODO: add support for SparkXShards
+              validation_data=None,
+              validation_steps=None):
         """
         See the documentation in
         'zoo.orca.learn.pytorch.estimator.PyTorchRayEstimatorWrapper.fit'.
@@ -211,7 +214,9 @@ class PyTorchRayEstimator:
                                                        epochs=epochs,
                                                        batch_size=batch_size,
                                                        profile=profile,
-                                                       info=info)
+                                                       info=info,
+                                                       validation_data_creator=validation_data,
+                                                       validation_steps=validation_steps)
 
         epoch_stats = list(map(list, zip(*worker_stats)))
         if reduce_results:
@@ -235,9 +240,11 @@ class PyTorchRayEstimator:
                 stats[stat_key] = worker_stats[0][stat_key]
         return stats
 
-    def _train_epochs(self, data_creator, epochs=1, batch_size=32, profile=False, info=None):
+    def _train_epochs(self, data_creator, epochs=1, batch_size=32, profile=False, info=None,
+                      validation_data_creator=None, validation_steps=None):
         params = dict(data_creator=data_creator, epochs=epochs,
-                      batch_size=batch_size, profile=profile, info=info)
+                      batch_size=batch_size, profile=profile, info=info, wrap_dataloader=False,
+                      validation_data_creator=validation_data_creator, validation_steps=validation_steps)
         remote_worker_stats = []
         for i, w in enumerate(self.remote_workers):
             stats = w.train_epochs.remote(**params)
@@ -275,7 +282,7 @@ class PyTorchRayEstimator:
                 "got type: {}".format(type(data))
 
             params = dict(data_creator=data, batch_size=batch_size, num_steps=num_steps,
-                          profile=profile, info=info)
+                          profile=profile, info=info, wrap_dataloader=False)
 
             worker_stats = ray.get([w.validate.remote(**params) for w in self.remote_workers])
         return self._process_stats(worker_stats)
