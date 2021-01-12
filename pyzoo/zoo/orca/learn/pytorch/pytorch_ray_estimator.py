@@ -101,7 +101,8 @@ class PyTorchRayEstimator:
             workers_per_node=1):
 
         # todo remove ray_ctx to run on workers
-        ray_ctx = RayContext.get()
+        super().__init__()
+        self.ray_ctx = RayContext.get()
         if not (isinstance(model_creator, types.FunctionType) and
                 isinstance(optimizer_creator, types.FunctionType)):  # Torch model is also callable.
             raise ValueError(
@@ -130,11 +131,13 @@ class PyTorchRayEstimator:
             training_operator_cls=self.training_operator_cls,
             scheduler_step_freq=self.scheduler_step_freq,
             use_tqdm=self.use_tqdm,
-            config=worker_config)
+            config=worker_config,
+            ray_node_cpu_cores=self.ray_ctx.ray_node_cpu_cores,
+        )
 
         if backend == "torch_distributed":
-            cores_per_node = ray_ctx.ray_node_cpu_cores // workers_per_node
-            num_nodes = ray_ctx.num_ray_nodes * workers_per_node
+            cores_per_node = self.ray_ctx.ray_node_cpu_cores // workers_per_node
+            num_nodes = self.ray_ctx.num_ray_nodes * workers_per_node
             RemoteRunner = ray.remote(num_cpus=cores_per_node)(TorchRunner)
             self.remote_workers = [
                 RemoteRunner.remote(**params) for i in range(num_nodes)
@@ -156,7 +159,7 @@ class PyTorchRayEstimator:
 
         elif backend == "horovod":
             from zoo.orca.learn.horovod.horovod_ray_runner import HorovodRayRunner
-            self.horovod_runner = HorovodRayRunner(ray_ctx,
+            self.horovod_runner = HorovodRayRunner(self.ray_ctx,
                                                    worker_cls=TorchRunner,
                                                    worker_param=params,
                                                    workers_per_node=workers_per_node)
@@ -182,12 +185,16 @@ class PyTorchRayEstimator:
               batch_size=32,
               profile=False,
               reduce_results=True,
-              info=None):
+              info=None,
+              feature_cols=None,
+              label_cols=None,):
         """
         See the documentation in
         'zoo.orca.learn.pytorch.estimator.PyTorchRayEstimatorWrapper.fit'.
         """
         from zoo.orca.data import SparkXShards
+        from pyspark.sql import DataFrame
+
         if isinstance(data, SparkXShards):
             from zoo.orca.data.utils import process_spark_xshards
             ray_xshards = process_spark_xshards(data, self.num_workers)
@@ -202,11 +209,21 @@ class PyTorchRayEstimator:
                                                                     transform_func,
                                                                     gang_scheduling=True)
             worker_stats = stats_shards.collect_partitions()
-        else:
-            assert isinstance(data, types.FunctionType), \
-                "data should be either an instance of SparkXShards or a callable function, but " \
-                "got type: {}".format(type(data))
 
+        else:
+            if isinstance(data, DataFrame):
+                from zoo.orca.learn.utils import spark_dataframe_python_server
+                assert feature_cols is not None, \
+                    "feature_col must be provided if data is a spark dataframe"
+                assert label_cols is not None, \
+                    "label_cols must be provided if data is a spark dataframe"
+
+                data = spark_dataframe_python_server(data, feature_cols, label_cols,
+                                                     self.remote_workers, self.ray_ctx)
+            else:
+                assert isinstance(data, types.FunctionType), \
+                    "data should be an instance of SparkXShards or an instance of Spark DataFrame" \
+                    " or a callable function, but got type: {}".format(type(data))
             success, worker_stats = self._train_epochs(data,
                                                        epochs=epochs,
                                                        batch_size=batch_size,
