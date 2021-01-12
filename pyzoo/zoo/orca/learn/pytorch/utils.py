@@ -197,12 +197,37 @@ class AverageMeter:
         self.avg = 0
         self.sum = 0
         self.count = 0
+        self.pos_his = None
+        self.neg_his = None
+        self.pos = None
+        self.neg = None
+        self.auc_result = None
 
     def update(self, val, n=1):
         self.val = val
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+    
+    def update_auc(self, val):
+        n_bins = 50
+        if self.pos is None:
+            self.pos_his = val["pos_his"]
+            self.neg_his = val["neg_his"]
+            self.pos = val["pos"]
+            self.neg = val["neg"]
+        else:
+            self.pos_his += val["pos_his"]
+            self.neg_his += val["neg_his"]
+            self.pos += val["pos"]
+            self.neg += val["neg"]
+        class_num = len(self.pos)
+        satisfied_pairs = np.zeros(class_num)
+        accumulated_neg = np.zeros(class_num)
+        for i in range(n_bins):
+            satisfied_pairs += (self.pos_his[:, i]*accumulated_neg + self.pos_his[:, i]*self.neg_his[:, i]*0.5)
+            accumulated_neg += self.neg_his[:, i]
+        self.auc_result = satisfied_pairs/(self.pos*self.neg)
 
 
 class AverageMeterCollection:
@@ -217,14 +242,20 @@ class AverageMeterCollection:
         self._batch_count += 1
         self.n += n
         for metric, value in metrics.items():
-            self._meters[metric].update(value, n=n)
+            if str(metric) is "auc_stats":
+                self._meters[metric].update_auc(value)
+            else:
+                self._meters[metric].update(value, n=n)
 
     def summary(self):
         """Returns a dict of average and most recent values for each metric."""
         stats = {BATCH_COUNT: self._batch_count, NUM_SAMPLES: self.n}
         for metric, meter in self._meters.items():
-            stats[str(metric)] = meter.avg
-            stats["last_" + str(metric)] = meter.val
+            if str(metric) is "auc_stats":
+                stats[str(metric)] = meter.auc_result
+            else:
+                stats[str(metric)] = meter.avg
+                stats["last_" + str(metric)] = meter.val
         return stats
 
 
