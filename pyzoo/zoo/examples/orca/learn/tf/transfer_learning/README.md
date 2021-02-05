@@ -11,7 +11,7 @@ conda create -n zoo python=3.7
 conda activate zoo
 pip install tensorflow==1.15
 pip install tensorflow_datasets==3.2.0
-pip install analytics_zoo-${VERSION}-${TIMESTAMP}-py2.py3-none-${OS}_x86_64.whl
+pip install --pre analytics-zoo
 ```
 Note: conda environment is required to run on Yarn, but not strictly necessary for running on local.
 

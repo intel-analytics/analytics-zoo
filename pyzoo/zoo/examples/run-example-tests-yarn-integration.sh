@@ -61,8 +61,21 @@ fi
 now=$(date "+%s")
 time3=$((now-start))
 
+echo "#4 start example test for autograd"
+#timer
+start=$(date "+%s")
+echo "#4.1 start example test for orca custom layer"
+python  ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/tf/autograd/custom.py --cluster_mode yarn --nb_epoch 10
+
+echo "#4.2 start example test for orca customloss"
+python  ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/tf/autograd/customloss.py --cluster_mode yarn --nb_epoch 10
+
+now=$(date "+%s")
+time4=$((now - start))
+
 clear_up
 
 echo "#1 orca tf transfer_learning time used:$time1 seconds"
 echo "#2 orca tf basic_text_classification time used:$time2 seconds"
 echo "#3 orca bigdl attention time used:$time3 seconds"
+echo "#4 orca tf autograd time used:$time4 seconds"
