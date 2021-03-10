@@ -148,6 +148,59 @@ def exists(path):
         return os.path.exists(path)
 
 
+def save_pickle(path, data):
+    """
+    Write a pickled representation of obj to the file.
+    It supports local, hdfs, s3 file systems.
+    :param path: file path
+    :param data: object to be pickled
+
+    """
+    import pickle
+    if path.startswith("hdfs"):  # hdfs://url:port/file_path
+        import pyarrow as pa
+        fs = pa.hdfs.connect()
+        with fs.open(path, 'wb') as f:
+            pickle.dump(data, f)
+    elif path.startswith("s3"):  # s3://bucket/file_path
+        access_key_id = os.environ["AWS_ACCESS_KEY_ID"]
+        secret_access_key = os.environ["AWS_SECRET_ACCESS_KEY"]
+        import boto3
+        from io import BytesIO
+        s3_client = boto3.Session(
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key).client('s3', verify=False)
+        path_parts = path.split("://")[1].split('/')
+        bucket = path_parts.pop(0)
+        key = "/".join(path_parts)
+        import tempfile
+        import shutil
+        temp_dir = tempfile.mkdtemp()
+        filename = os.path.basename(path)
+        file_path = os.path.join(temp_dir, filename)
+        with open(file_path, "wb") as f:
+            pickle.dump(data, f)
+        s3_client.upload_file(file_path, Bucket=bucket, Key=key)
+        shutil.rmtree(temp_dir)
+    else:
+        # Local path
+        with open(path, 'wb') as f:
+            pickle.dump(data, f)
+
+
+def load_pickle(data):
+    """
+    Load pickled objects from bytes.
+    It supports local, hdfs, s3 file systems.
+    :param path: file path
+    :return: unpickle objects
+    """
+    import pickle
+    from io import BytesIO
+    result = pickle.load(BytesIO(data))
+    return result
+
+
 def makedirs(path):
     """
     Make a directory with creating intermediate directories.

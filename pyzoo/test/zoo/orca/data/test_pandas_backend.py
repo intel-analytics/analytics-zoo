@@ -25,7 +25,7 @@ import zoo.orca.data.pandas
 from zoo.orca import OrcaContext
 from zoo.orca.data import SharedValue
 from zoo.common.nncontext import *
-from zoo.orca.data import SparkXShards
+from zoo.orca.data import SparkXShards, XShards
 
 
 class TestSparkXShards(TestCase):
@@ -170,7 +170,7 @@ class TestSparkXShards(TestCase):
         self.assertTrue('No selection operation available for this XShards' in
                         str(context.exception))
 
-    def test_save(self):
+    def test_save_pickle(self):
         temp = tempfile.mkdtemp()
         file_path = os.path.join(self.resource_path, "orca/data/csv")
         data_shard = zoo.orca.data.pandas.read_csv(file_path)
@@ -178,6 +178,29 @@ class TestSparkXShards(TestCase):
         data_shard.save_pickle(path)
         shards = zoo.orca.data.XShards.load_pickle(path)
         assert isinstance(shards, zoo.orca.data.SparkXShards)
+        data = shards.rdd.first()
+        import pandas as pd
+        assert isinstance(data, pd.DataFrame)
+
+        data_shard = zoo.orca.data.pandas.read_csv(file_path)
+
+        def transform(df):
+            result = {
+                "x": (df['ID'].to_numpy(),
+                      df['sale_price'].to_numpy()),
+                "y": df['location'].to_numpy()
+            }
+            return result
+
+        data_shard = data_shard.transform_shard(transform)
+
+        path = os.path.join(temp, "data2.pkl")
+        data_shard.save_pickle(path)
+        shards = zoo.orca.data.XShards.load_pickle(path)
+        assert isinstance(shards, zoo.orca.data.SparkXShards)
+        data = shards.rdd.first()
+        assert isinstance(data, dict)
+
         shutil.rmtree(temp)
 
     def test_transform(self):
