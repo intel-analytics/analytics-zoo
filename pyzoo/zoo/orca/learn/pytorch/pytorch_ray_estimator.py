@@ -105,10 +105,8 @@ class PyTorchRayEstimator:
 
         # todo remove ray_ctx to run on workers
         ray_ctx = RayContext.get()
-        if not (isinstance(model_creator, types.FunctionType) and
-                isinstance(optimizer_creator, types.FunctionType)):  # Torch model is also callable.
-            raise ValueError(
-                "Must provide a function for both model_creator and optimizer_creator")
+        assert isinstance(optimizer_creator, types.FunctionType), \
+            "Must provide a function for optimizer_creator"
 
         self.model_creator = model_creator
         self.optimizer_creator = optimizer_creator
@@ -350,7 +348,11 @@ class PyTorchRayEstimator:
     def get_model(self):
         """Returns the learned model(s)."""
         state = self.get_state_dict()
-        model = self.model_creator(self.config)
+        import types
+        if isinstance(self.model_creator, types.FunctionType):
+            model = self.model_creator(self.config)
+        else:
+            model = self.model_creator
         model_state = state["models"][0]
         model.load_state_dict(model_state)
         return model.module if hasattr(model, "module") else model

@@ -155,7 +155,12 @@ class TorchRunner:
         """Runs the creator functions without any distributed coordination."""
 
         logger.debug("Creating model")
-        self.models = self.model_creator(self.config)
+        # Torch model is also callable, so can't use callable to check a function.
+        import types
+        if isinstance(self.model_creator, types.FunctionType):
+            self.models = self.model_creator(self.config)
+        else:
+            self.models = self.model_creator
         if not isinstance(self.models, Iterable):
             self.models = [self.models]
         assert all(isinstance(model, nn.Module) for model in self.models), (
@@ -174,7 +179,12 @@ class TorchRunner:
         import horovod.torch as hvd
 
         logger.debug("Creating model")
-        self.models = self.model_creator(self.config)
+        # Torch model is also callable, so can't use callable to check a function.
+        import types
+        if isinstance(self.model_creator, types.FunctionType):
+            self.models = self.model_creator(self.config)
+        else:
+            self.models = self.model_creator
         if not isinstance(self.models, Iterable):
             self.models = [self.models]
         else:

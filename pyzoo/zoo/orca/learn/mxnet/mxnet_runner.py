@@ -47,8 +47,11 @@ class MXNetRunner(object):
             # Set seed so that the model on each worker is initialized with the same weights.
             if "seed" in self.config:
                 mx.random.seed(self.config["seed"])
-
-            self.model = self.model_creator(self.config)
+            import types
+            if isinstance(self.model_creator, types.FunctionType):
+                self.model = self.model_creator(self.config)
+            else:
+                self.model = self.model_creator
             self.loss = self.loss_creator(self.config) if self.loss_creator else None
             self.eval_metrics = self.eval_metrics_creator(self.config) \
                 if self.eval_metrics_creator else None
