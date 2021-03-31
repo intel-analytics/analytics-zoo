@@ -55,8 +55,14 @@ class KerasBaseModel(BaseModel):
         TODO: check the updated params and decide if the model is needed to be rebuilt
         """
         def update_config():
+            # LSTM & MTNet
             config.setdefault("input_dim", x.shape[-1])
             config.setdefault("output_dim", y.shape[-1])
+            # Seq2Seq
+            config.setdefault("future_seq_len", y.shape[1])
+            config.setdefault("output_feature_num", y.shape[2])
+            config.setdefault("input_feature_num", x.shape[2])
+            # other
             config.update({"metric": metric})
 
         if not self.model_built:
