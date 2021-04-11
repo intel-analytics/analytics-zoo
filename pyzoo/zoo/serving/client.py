@@ -66,15 +66,27 @@ class API:
     select data pipeline here, Redis/Kafka/...
     interface preserved for API class
     """
-    def __init__(self, host=None, port=None, name="serving_stream"):
+    def __init__(self, host=None, port=None, name="serving_stream", ssl=False,
+                 ssl_certfile=None, ssl_keyfile=None, ssl_ca_certs=None):
         self.name = name
         if not host:
             host = "localhost"
         if not port:
             port = "6379"
 
-        self.db = redis.StrictRedis(host=host,
-                                    port=port, db=0)
+        if not ssl:
+            self.db = redis.StrictRedis(host=host,
+                                        port=port, db=0)
+        else:
+            # TODO none for self-signed key
+            self.db = redis.StrictRedis(host=host,
+                                        port=port,
+                                        db=0,
+                                        ssl=True,
+                                        ssl_cert_reqs="none",
+                                        ssl_certfile=ssl_certfile,
+                                        ssl_keyfile=ssl_keyfile,
+                                        ssl_ca_certs=ssl_ca_certs)
         try:
             self.db.xgroup_create(name, "serving")
         except Exception:
@@ -82,8 +94,12 @@ class API:
 
 
 class InputQueue(API):
-    def __init__(self, host=None, port=None, sync=True, frontend_url=None):
-        super().__init__(host, port)
+    def __init__(self, host=None, port=None, sync=True, frontend_url=None, ssl=False,
+                 ssl_certfile=None, ssl_keyfile=None, ssl_ca_certs=None):
+        if not ssl:
+            super().__init__(host, port)
+        else:
+            super().__init__(host, port, "serving_stream", ssl, ssl_certfile, ssl_keyfile, ssl_ca_certs)
         self.frontend_url = None
         if self.frontend_url:
             # frontend_url is provided, using frontend
@@ -234,8 +250,12 @@ class InputQueue(API):
 
 
 class OutputQueue(API):
-    def __init__(self, host=None, port=None):
-        super().__init__(host, port)
+    def __init__(self, host=None, port=None, ssl=False,
+                 ssl_certfile=None, ssl_keyfile=None, ssl_ca_certs=None):
+        if not ssl:
+            super().__init__(host, port)
+        else:
+            super().__init__(host, port, "serving_stream", ssl, ssl_certfile, ssl_keyfile, ssl_ca_certs)
 
     def dequeue(self):
         res_list = self.db.keys(RESULT_PREFIX + self.name + ':*')
