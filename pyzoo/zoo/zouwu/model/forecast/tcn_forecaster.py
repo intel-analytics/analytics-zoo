@@ -15,7 +15,12 @@
 #
 
 from zoo.zouwu.model.forecast.abstract import Forecaster
+from zoo.zouwu.model.forecast.utils import *
 from zoo.zouwu.model.tcn import TCNPytorch
+
+from zoo.orca import init_orca_context
+from zoo.orca.learn.pytorch import Estimator
+from zoo.orca.learn.metrics import *
 
 
 class TCNForecaster(Forecaster):
@@ -67,29 +72,65 @@ class TCNForecaster(Forecaster):
             "dropout": dropout
         }
 
-    def fit(self, x, y, validation_data=None, epochs=1, metric="mse", batch_size=32):
+    def fit(self, data, validation_data=None, epochs=1, metric="mse", batch_size=32,
+            distributed=False, **kwargs):
         """
         Fit(Train) the forecaster.
 
-        :param x: A numpy array with shape (num_samples, lookback, feature_dim).
-               lookback and feature_dim should be the same as past_seq_len and input_feature_num.
-        :param y: A numpy array with shape (num_samples, horizon, target_dim).
-               horizon and target_dim should be the same as future_seq_len and output_feature_num.
-        :param validation_data: A tuple (x_valid, y_valid) as validation data. Default to None.
+        :param data: For single node training, it's a dictionary.
+        x: A numpy array with shape (num_samples, lookback, feature_dim).
+        lookback and feature_dim should be the same as past_seq_len and input_feature_num.
+        y: A numpy array with shape (num_samples, horizon, target_dim).
+        horizon and target_dim should be the same as future_seq_len and output_feature_num.
+        
+        For distributed training, it can be an instance of SparkXShards, a Spark DataFrame
+        or a function that takes config and batch_size as argument and returns a PyTorch
+        DataLoader for training
+        :param validation_data: validation data, similar to data
         :param epochs: Number of epochs you want to train.
         :param metric: The metric for training data.
         :param batch_size: Number of batch size you want to train.
+        :param distributed: whether train in ditributed.
         """
-        if validation_data is None:
-            validation_data = (x, y)
         self.config["batch_size"] = batch_size
-        self._check_data(x, y)
-        return self.internal.fit_eval(x,
-                                      y,
-                                      validation_data=validation_data,
-                                      epochs=epochs,
-                                      metric=metric,
-                                      **self.config)
+
+        if not distributed:
+            x = data["x"]
+            y = data["y"]
+
+            if validation_data:
+                val_x = validation_data["x"]
+                val_y = validation_data["y"]
+                v_data = (val_x, val_y)
+            else:
+                v_data = (x, y)
+            self._check_data(x, y)
+            res = self.internal.fit_eval(x,
+                                         y,
+                                         validation_data=v_data,
+                                         epochs=epochs,
+                                         metric=metric,
+                                         **self.config)
+        else:
+            cluster_mode = kwargs.get("cluster_mode", "local")
+            num_nodes = kwargs.get("num_nodes", 1)
+            cores = kwargs.get("cores", 2)
+            memory = kwargs.get("memory", "2g")
+            init_orca_context(
+                cluster_mode=cluster_mode, num_nodes=num_nodes, cores=cores, memory=memory, **kwargs)
+
+            self.config.update(self.data_config)
+            self.internal.build(self.config)
+
+            orca_metrics = convert_str_metric_to_orca_metric(metric)
+            self.orca_estimator = Estimator.from_torch(model=self.internal.model,
+                                                  optimizer=self.internal.optimizer,
+                                                  loss=self.internal.criterion,
+                                                  backend="bigdl",
+                                                  metrics=orca_metrics)
+            res = self.orca_estimator.fit(data=data, epochs=epochs, validation_data=validation_data)
+
+        return res
 
     def _check_data(self, x, y):
         assert self.data_config["past_seq_len"] == x.shape[-2], \
@@ -109,15 +150,20 @@ class TCNForecaster(Forecaster):
             Got output_feature_num of {} in config while y input shape of {}."\
             .format(self.data_config["output_feature_num"], y.shape[-1])
 
-    def predict(self, x):
+    def predict(self, x, distributed=False):
         """
         Predict using a trained forecaster.
 
-        :param x: A numpy array with shape (num_samples, lookback, feature_dim).
+        :param x: for single mode: A numpy array with shape (num_samples, lookback, feature_dim).
+                  for distributed mode: An instance of SparkXShards or a Spark DataFrame
         """
         if not self.internal.model_built:
             raise RuntimeError("You must call fit or restore first before calling predict!")
-        return self.internal.predict(x)
+        if not distributed:
+            return self.internal.predict(x)
+        else:
+            assert self.orca_estimator
+            return self.orca_estimator.predict(x)
 
     def predict_with_onnx(self, x, dirname=None):
         """
@@ -131,17 +177,28 @@ class TCNForecaster(Forecaster):
             raise RuntimeError("You must call fit or restore first before calling predict!")
         return self.internal.predict_with_onnx(x, dirname=dirname)
 
-    def evaluate(self, x, y, metrics=['mse']):
+    def evaluate(self, val_data, metrics=['mse'], distributed=False):
         """
         Evaluate using a trained forecaster.
 
-        :param x: A numpy array with shape (num_samples, lookback, feature_dim).
-        :param y: A numpy array with shape (num_samples, horizon, target_dim).
+        :param val_data: For single node training, it's a dictionary.
+        x: A numpy array with shape (num_samples, lookback, feature_dim).
+        y: A numpy array with shape (num_samples, horizon, target_dim).
+        
+        For distributed training, it can be an instance of SparkXShards, a Spark DataFrame
+        or PyTorch DataLoader and PyTorch DataLoader creator function
         :param metrics: A list contains metrics for test/valid data.
         """
         if not self.internal.model_built:
             raise RuntimeError("You must call fit or restore first before calling evaluate!")
-        return self.internal.evaluate(x, y, metrics=metrics)
+        if not distributed:
+            x = val_data["x"]
+            y = val_data["y"]
+            return self.internal.evaluate(x, y, metrics=metrics)
+        else:
+            orca_metrics = convert_str_metric_to_orca_metric(metrics)
+            self.orca_estimator.metrics = Metric.convert_metrics_list(orca_metrics)
+            return self.orca_estimator.evaluate(val_data)
 
     def evaluate_with_onnx(self, x, y, metrics=['mse'], dirname=None):
         """
