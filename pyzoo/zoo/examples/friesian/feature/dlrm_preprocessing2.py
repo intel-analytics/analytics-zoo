@@ -40,7 +40,8 @@ conf = {"spark.network.timeout": "10000000",
         "spark.kryoserializer.buffer.max": "1024m",
         "spark.task.cpus": "1",
         "spark.executor.heartbeatInterval": "200s",
-        "spark.driver.maxResultSize": "40G"}
+        "spark.driver.maxResultSize": "40G",
+        "spark.hadoop.dfs.replication": "1"}
 
 
 def _parse_args():
@@ -70,116 +71,31 @@ def _parse_args():
         choices=['overwrite', 'errorifexists'],
         default='errorifexists')
 
-    parser.add_argument('--frequency_limit', type=str, default="15",
-                        help="Categories with a count/frequency below frequency_limit will be "
-                             "omitted from the encoding. For instance, '15', '_c14:15,_c15:16', "
-                             "etc")
+    parser.add_argument('--frequency_limit')
 
     args = parser.parse_args()
     start, end = args.days.split('-')
     args.day_range = list(range(int(start), int(end) + 1))
     args.days = len(args.day_range)
 
-    frequency_limit_dict = {}
-    default_limit = None
-    if args.frequency_limit:
-        frequency_limit = args.frequency_limit.split(",")
-        for fl in frequency_limit:
-            frequency_pair = fl.split(":")
-            if len(frequency_pair) == 1:
-                default_limit = int(frequency_pair[0])
-            elif len(frequency_pair) == 2:
-                frequency_limit_dict[frequency_pair[0]] = frequency_pair[1]
-    if len(frequency_limit_dict) > 0:
-        args.frequency_limit = frequency_limit_dict
-    else:
-        args.frequency_limit = default_limit
-
     return args
 
 
-def save_file(folder_path):
-    def f(index, iterator):
-        ip = get_node_ip()
-        part_size = 1000000
-        buffer = []
-        sub_index = 0
-        for record in iterator:
-            if len(buffer) == part_size:
-                import random
-                random.shuffle(buffer)
-                X_int_buffer = np.array([record[1] for record in buffer], dtype=np.float32)
-                X_cat_buffer = np.array([record[2] for record in buffer], dtype=np.int32)
-                y_buffer = np.array([record[0] for record in buffer], dtype=np.int32)
-                file_name = "partition{}_{}_{}.npz".format(index, sub_index, part_size)
-                np.savez_compressed(
-                    folder_path + file_name,
-                    X_int=X_int_buffer,
-                    X_cat=X_cat_buffer,
-                    y=y_buffer,
-                    size=part_size
-                )
-                sub_index += 1
-                buffer = [[record[0], record[1], record[2]]]
-                yield index, part_size, file_name, ip
-            else:
-                buffer.append([record[0], record[1], record[2]])
-        remain_size = len(buffer)
-        if remain_size > 0:
-            import random
-            random.shuffle(buffer)
-            X_int_buffer = np.array([record[1] for record in buffer], dtype=np.float32)
-            X_cat_buffer = np.array([record[2] for record in buffer], dtype=np.int32)
-            y_buffer = np.array([record[0] for record in buffer], dtype=np.int32)
-            file_name = "partition{}_{}_{}.npz".format(index, sub_index, remain_size)
-            np.savez_compressed(
-                folder_path + file_name,
-                X_int=X_int_buffer,
-                X_cat=X_cat_buffer,
-                y=y_buffer,
-                size=remain_size
-            )
-            yield index, remain_size, file_name, ip
-
-    return f
-
-
-def preprocess_and_save(data_tbl, models, mode, partitions=None):
+def preprocess_and_save(data_tbl, models, mode, hdfs_path):
     data_tbl = data_tbl.encode_string(CAT_COLS, models) \
         .fillna(0, INT_COLS + CAT_COLS).log(INT_COLS)
     data_tbl = data_tbl.merge_cols(INT_COLS, "X_int").merge_cols(CAT_COLS, "X_cat")
-    rdd = data_tbl.to_spark_df().rdd
+    data_tbl = data_tbl.ordinal_shuffle_partition()
     if mode == "train":
-        save_path = "/disk1/saved_data/"
+        save_path = os.path.join(hdfs_path, "saved_data")
     elif mode == "test":
-        assert partitions
-        rdd = rdd.repartition(partitions)
-        save_path = "/disk1/saved_data_test/"
+        # No need to repartition if saved to hdfs?
+        save_path = os.path.join(hdfs_path, "saved_data_test")
     else:
         raise ValueError("mode should be either train or test")
-    print("Saving data files to disk")
-    save_res = rdd.mapPartitionsWithIndex(
-        save_file(save_path)).collect()
-    return save_res
-
-
-def process_save_res(save_res):
-    size_map = {}
-    for partition_id, subpartition_size, file_name, ip in save_res:
-        if ip not in size_map:
-            size_map[ip] = {}
-        if partition_id not in size_map[ip]:
-            size_map[ip][partition_id] = []
-        size_map[ip][partition_id].append(subpartition_size)
-    size = 0
-    count = 0
-    for node, data in size_map.items():
-        for partition_id, subpartition_size in data.items():
-            size += sum(subpartition_size)
-            count += len(subpartition_size)
-        print("Node {} has {} subpartitions and {} records".format(node, count, size))
-        size = 0
-        count = 0
+    print("Saving data files to hdfs")
+    data_tbl.write_parquet(save_path)
+    return data_tbl
 
 
 if __name__ == '__main__':
@@ -203,18 +119,13 @@ if __name__ == '__main__':
     idx_list = tbl.gen_string_idx(CAT_COLS, freq_limit=args.frequency_limit)
 
     train_data = FeatureTable.read_parquet(paths[:-1])
-    train_save_res = preprocess_and_save(train_data, idx_list, "train")
+    train_preprocessed = preprocess_and_save(train_data, idx_list, "train", args.input_folder)
 
     test_data = FeatureTable.read_parquet(os.path.join(args.input_folder, "day_23_test.parquet"))
-    test_save_res = preprocess_and_save(test_data, idx_list, "test",
-                                        partitions=args.executor_cores*args.num_executor)
+    test_preprocessed = preprocess_and_save(test_data, idx_list, "test", args.input_folder)
 
     time_end = time()
     print("Total time: ", time_end - time_start)
-    train_data.show(5)
-    print("Train data distribution: ")
-    process_save_res(train_save_res)
-    print("Test data distribution: ")
-    process_save_res(test_save_res)
+    train_preprocessed.show(5)
     print("Finished")
     stop_orca_context()

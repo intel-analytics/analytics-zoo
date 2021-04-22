@@ -17,8 +17,7 @@ import os
 
 from pyspark.sql.functions import col, array, broadcast
 from zoo.orca import OrcaContext
-from zoo.friesian.feature.utils import generate_string_idx, fill_na, \
-    fill_na_int, compute, log_with_clip, clip_min
+from zoo.friesian.feature.utils import *
 
 JAVA_INT_MIN = -2147483648
 JAVA_INT_MAX = 2147483647
@@ -168,6 +167,21 @@ class Table:
         """
         self.df.show(n, truncate)
 
+    def shuffle_partition(self):
+        return self._clone(shuffle_partition(self.df))
+
+    def ordinal_shuffle_partition(self):
+        return self._clone(ordinal_shuffle_partition(self.df))
+
+    def shuffle_subpartition(self, part_size=1000000):
+        return self._clone(shuffle_subpartition(self.df, part_size))
+
+    def write_parquet(self, path, mode="overwrite"):
+        write_parquet(self.df, path, mode)
+
+    def save_parquet(self, path, mode="overwrite", part_size=100000):
+        return save_parquet(self.df, path, mode, part_size)
+
 
 class FeatureTable(Table):
     @classmethod
@@ -280,4 +294,4 @@ class StringIndex(Table):
                operation if data already exists.
         """
         path = path + "/" + self.col_name + ".parquet"
-        self.df.write.parquet(path, mode=mode)
+        write_parquet(self.df, path, mode)

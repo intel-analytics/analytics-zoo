@@ -16,19 +16,25 @@
 
 package com.intel.analytics.zoo.friesian.python
 
-import java.util
+import java.net.{DatagramSocket, InetAddress}
 
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.zoo.common.PythonZoo
 import com.intel.analytics.zoo.friesian.feature.Utils
 import java.util.{List => JList}
 
+import com.github.mjakubowski84.parquet4s.ParquetWriter
+import org.apache.parquet.hadoop.ParquetFileWriter
 import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions.{col, row_number, spark_partition_id, udf, log => sqllog}
+import org.apache.spark.sql.functions.{col, row_number, spark_partition_id, udf, log => sqllog, rand}
 import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.types.LongType
 
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
+import scala.util.Random
+import scala.math.pow
 
 object PythonFriesian {
   def ofFloat(): PythonFriesian[Float] = new PythonFriesian[Float]()
@@ -179,5 +185,95 @@ class PythonFriesian[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZ
       resultDF = resultDF.withColumn(colName, clipFuncUDF(col(colName)))
     }
     resultDF
+  }
+
+  def ordinalShufflePartition(df: DataFrame): DataFrame = {
+    val shuffledDF = df.withColumn("ordinal", (rand() * pow(2, 52)).cast(LongType))
+      .sortWithinPartitions(col("ordinal")).drop(col("ordinal"))
+    shuffledDF
+  }
+
+  def shufflePartition(df: DataFrame): DataFrame = {
+    val spark = df.sparkSession
+    val rdd = df.rdd
+    val schema = df.schema
+    val shuffledRDD = rdd.mapPartitions(iter => {
+      Random.shuffle(iter.toSeq).toIterator
+    })
+    spark.createDataFrame(shuffledRDD, schema)
+  }
+
+  def shuffleSubPartition(df: DataFrame, partSize: Int = 1000000): DataFrame = {
+    val spark = df.sparkSession
+    val rdd = df.rdd
+    val schema = df.schema
+    val shuffledRDD = rdd.mapPartitions(iter => {
+      val resIters = new ArrayBuffer[Iterator[Row]]()
+      var buffer = new ArrayBuffer[Row]()
+      iter.foreach(row => {
+        if (buffer.size == partSize) {
+          resIters.append(Random.shuffle(buffer).toIterator)
+          buffer = new ArrayBuffer[Row]()
+          buffer.append(row)
+        }
+        else {
+          buffer.append(row)
+        }
+      })
+      if (buffer.nonEmpty){
+        resIters.append(Random.shuffle(buffer).toIterator)
+      }
+      resIters.toList.reduce((iter1, iter2) => iter1 ++ iter2)
+    })
+    spark.createDataFrame(shuffledRDD, schema)
+  }
+
+  def dfWriteParquet(df: DataFrame, path: String, mode: String = "overwrite"): Unit = {
+    df.write.mode(mode).parquet(path)
+  }
+
+  // TODO: can convert schema to case class.
+  // https://gist.github.com/yoyama/ce83f688717719fc8ca145c3b3ff43fd
+  case class Record(y: Int, xInt: List[Double], xCat: List[Int])
+
+  def dfSaveParquet(df: DataFrame, path: String, mode: String = "overwrite", partSize: Int = 100000):
+  JList[JList[Any]] = {
+    // TODO: handle mode
+    val rdd = df.rdd
+    val res = rdd.mapPartitionsWithIndex((idx, iter) => {
+      val meta = new ArrayBuffer[List[Any]]()
+      val socket = new DatagramSocket()
+      socket.connect(InetAddress.getByName("8.8.8.8"), 10002)
+      val ip = socket.getLocalAddress.getHostAddress
+      var buffer = new ArrayBuffer[Row]()
+      var subIndex = 0
+      val writeOptions = ParquetWriter.Options(
+        writeMode = ParquetFileWriter.Mode.OVERWRITE
+      )
+      for (row <- iter) {
+        if (buffer.size == partSize) {
+          val records = Random.shuffle(buffer.map(
+            row => Record(row.getInt(0), row.getList[Double](1).asScala.toList, row.getList[Int](2).asScala.toList)))
+          val fileName = "partition_" + idx + "_" + subIndex + "_" + buffer.size + ".parquet"
+          ParquetWriter.writeAndClose(path + fileName, records, options = writeOptions)
+          meta.append(List(idx, subIndex, partSize, fileName, ip))
+          subIndex += 1
+          buffer = new ArrayBuffer[Row]()
+          buffer.append(row)
+        }
+        else {
+          buffer.append(row)
+        }
+      }
+      if (buffer.nonEmpty){
+        val records = Random.shuffle(buffer.map(
+          row => Record(row.getInt(0), row.getList[Double](1).asScala.toList, row.getList[Int](2).asScala.toList)))
+        val fileName = "partition_" + idx + "_" + subIndex + "_" + buffer.size + ".parquet"
+        ParquetWriter.writeAndClose(path + fileName, records, options = writeOptions)
+        meta.append(List(idx, subIndex, buffer.size, fileName, ip))
+      }
+      meta.map(_.asJava).toIterator
+    }).collect().toList.asJava
+    res
   }
 }
