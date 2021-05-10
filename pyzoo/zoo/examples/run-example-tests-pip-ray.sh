@@ -95,6 +95,12 @@ time9=$?
 execute_ray_test auto-xgboost-regressor "${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/AutoXGBoostRegressor.py -p ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/incd.csv"
 time10=$?
 
+execute_ray_test auto-xgboost-regressor "${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/AutoXGBoostRegressor.py -p ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/incd.csv -m sigopt"
+time11=$?
+
+execute_ray_test auto-xgboost-regressor "${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/AutoXGBoostRegressor.py -p ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/incd.csv -m skopt"
+time12=$?
+
 echo "#1 rl_pong time used:$time1 seconds"
 echo "#2 sync_parameter_server time used:$time2 seconds"
 echo "#3 async_parameter_server time used:$time3 seconds"
@@ -105,5 +111,7 @@ echo "#7 super-resolution time used:$time7 seconds"
 echo "#8 cifar10 time used:$time8 seconds"
 echo "#9 auto-xgboost-classifier time used:$time9 seconds"
 echo "#10 auto-xgboost-regressor time used:$time10 seconds"
+echo "#11 auto-xgboost-regressor with sigopt time used:$time11 seconds"
+echo "#12 auto-xgboost-regressor with skopt time used:$time12 seconds"
 
 clear_up

@@ -135,6 +135,26 @@ now=$(date "+%s")
 time10=$((now-start))
 
 
+echo "#11 start example for orca auto-xgboost-regressor with sigopt"
+start=$(date "+%s")
+
+python ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/AutoXGBoostRegressor.py \
+ -p ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/incd.csv -m sigopt
+
+now=$(date "+%s")
+time11=$((now-start))
+
+
+echo "#12 start example for orca auto-xgboost-regressor with skopt"
+start=$(date "+%s")
+
+python ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/AutoXGBoostRegressor.py \
+ -p ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/automl/autoxgboost/incd.csv -m skopt
+
+now=$(date "+%s")
+time12=$((now-start))
+
+
 echo "Ray example tests finished"
 echo "#1 orca rl_pong time used:$time1 seconds"
 echo "#2 orca async_parameter_server time used:$time2 seconds"
@@ -146,3 +166,5 @@ echo "#7 orca super-resolution example time used:$time7 seconds"
 echo "#8 orca cifar10 example time used:$time8 seconds"
 echo "#9 orca auto-xgboost-classifier time used:$time9 seconds"
 echo "#10 orca auto-xgboost-regressor time used:$time10 seconds"
+echo "#11 orca auto-xgboost-regressor with sigopt time used:$time11 seconds"
+echo "#12 orca auto-xgboost-regressor with skopt time used:$time12 seconds"
