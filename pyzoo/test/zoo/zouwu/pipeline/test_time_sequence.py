@@ -127,7 +127,7 @@ class TestTimeSequencePipeline(ZooTestCase):
         future_seq_len = np.random.randint(2, 6)
         train_df, test_df, tsp, test_sample_num = self.get_input_tsp(future_seq_len, target_col)
         pipeline = tsp.fit(train_df, test_df)
-        mse, rs = pipeline.evaluate(test_df, metrics=metrics)
+        mse, rs = pipeline.evaluate(test_df, metrics=metrics, multioutput='raw_values')
         assert len(mse) == future_seq_len
         assert len(rs) == future_seq_len
         y_pred = pipeline.predict(test_df)

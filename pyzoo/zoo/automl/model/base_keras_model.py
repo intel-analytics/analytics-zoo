@@ -102,16 +102,19 @@ class KerasBaseModel(BaseModel):
             result = hist.history.get('val_' + metric_name)[-1]
         return result
 
-    def evaluate(self, x, y, metrics=['mse']):
+    def evaluate(self, x, y, metrics=['mse'], multioutput="raw_values"):
         """
         Evaluate on x, y
         :param x: input
         :param y: target
         :param metrics: a list of metrics in string format
+        :param multioutput: string, one of ["raw_values", "uniform_average"]
         :return: a list of metric evaluation results
         """
         y_pred = self.predict(x)
-        return [Evaluator.evaluate(m, y, y_pred) for m in metrics]
+        eval_result = [Evaluator.evaluate(m, y_true=y, y_pred=y_pred, multioutput=multioutput)
+                       for m in metrics]
+        return eval_result
 
     def predict(self, x):
         """
