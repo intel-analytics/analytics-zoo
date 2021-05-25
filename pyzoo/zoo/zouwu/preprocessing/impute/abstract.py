@@ -71,7 +71,7 @@ class BaseImpute(ABC):
         """
         raise NotImplementError
 
-    def evaluate(self, df, drop_rate):
+    def evaluate(self, df, drop_rate,knn = False):
         """
         evaluate model by randomly drop some value
         :params df: input dataframe
@@ -79,7 +79,10 @@ class BaseImpute(ABC):
         :return: MSE results
         """
         missing = df.isna()*1
-        df1 = self.impute(df)
+        if knn:
+            df1 = df.fillna(df.mean())
+        else:
+            df1 = self.impute(df)
         missing = missing.to_numpy()
         mask = np.zeros(df.shape[0]*df.shape[1])
         idx = np.random.choice(mask.shape[0], int(mask.shape[0]*drop_rate), replace=False)
