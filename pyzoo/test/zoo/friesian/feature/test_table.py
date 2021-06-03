@@ -515,5 +515,27 @@ class TestTable(TestCase):
         assert tbl.df.where(tbl.df.height == 10).select("num").collect()[0]["num"] == 2, \
             "the third row of num should be 2"
 
+    def test_difference_lag(self):
+        file_path = os.path.join(self.resource_path, "friesian/feature/parquet/data2.parquet")
+        feature_tbl = FeatureTable.read_parquet(file_path)
+        with self.assertRaises(Exception) as context:
+            feature_tbl.difference_lag("col_4", "col_4")
+        self.assertTrue("columns should be numeric" in str(context.exception))
+
+        diff_tbl1 = feature_tbl.difference_lag("col_1", "col_1")
+        assert diff_tbl1.df.filter("col_1_dl_col_1_1 == 1").count() == 5 and \
+                diff_tbl1.df.filter("col_1_dl_col_1_1 == 0").count() == 13 and \
+                diff_tbl1.df.filter("col_1_dl_col_1_1 is null").count() == 2, \
+                "col_1 has 6 different values and 1 null, so after sorted by col_1, there should" \
+                " be 5 rows with (lag of col_1) = 1, 2 rows with (lag of col_1) = null," \
+                " and other rows with (lag of col_1) = 0"
+
+        diff_tbl2 = feature_tbl.difference_lag(["col_1", "col_2"], ["col_3"], shifts=[1, -1],
+                partition_cols=["col_5"], out_cols=[["c1p1", "c1m1"], ["c2p1", "c2m1"]])
+        assert diff_tbl2.df.filter("col_3 == 8.0 and col_5 == 'cc'") \
+                .filter("c1p1 == 1 and c1m1 == 2 and c2p1 == -1 and c2m1 == -4") \
+                .count() == 1, "the row with col_3 = 8.0 and col_5 = 'cc' should have c1p1 = 1, " \
+                "c1m1 = 2, c2p1 = -1, c2m1 = -4 after difference_lag"
+
 if __name__ == "__main__":
     pytest.main([__file__])
