@@ -20,10 +20,11 @@ import tempfile
 from unittest import TestCase
 
 from pyspark.sql.functions import col, max, min, array
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, ArrayType
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, ArrayType, \
+        DoubleType
 
 from zoo.orca import OrcaContext
-from zoo.friesian.feature import FeatureTable, StringIndex
+from zoo.friesian.feature import FeatureTable, StringIndex, TargetCode
 from zoo.common.nncontext import *
 
 
@@ -514,6 +515,109 @@ class TestTable(TestCase):
             "the first row of name should be 1"
         assert tbl.df.where(tbl.df.height == 10).select("num").collect()[0]["num"] == 2, \
             "the third row of num should be 2"
+
+    def test_gen_target(self):
+        file_path = os.path.join(self.resource_path, "friesian/feature/parquet/data2.parquet")
+        feature_tbl = FeatureTable.read_parquet(file_path)
+        with self.assertRaises(Exception) as context:
+            feature_tbl.gen_target("col_4", "target", kfold=-1)
+        self.assertTrue("kfold should be an integer larger than 0" in str(context.exception))
+        with self.assertRaises(Exception) as context:
+            feature_tbl.gen_target("col_4", "col_5")
+        self.assertTrue("target_cols should be numeric" in str(context.exception))
+        with self.assertRaises(Exception) as context:
+            feature_tbl.gen_target("col_4", "target", out_cols=[])
+        self.assertTrue("out_cols should have the same length" in str(context.exception))
+        with self.assertRaises(Exception) as context:
+            feature_tbl.gen_target("col_4", "target", target_mean={"target":"2"})
+        self.assertTrue("mean in target_mean should be numeric" in str(context.exception))
+        with self.assertRaises(Exception) as context:
+            feature_tbl.gen_target("col_4", "target", kfold=2, fold_col="col_3")
+        self.assertTrue("fold_col should be integer type" in str(context.exception))
+
+        target_tbl1, target_list1 = feature_tbl.gen_target("col_4", "target", smooth=0)
+        assert target_tbl1.df.columns == feature_tbl.df.columns, \
+                "target_tbl1 should be the same as feature_tbl"
+        assert len(target_list1) == 1, "len(target_list1) = len(cat_cols) of gen_target"
+        target_code1 = target_list1[0]
+        assert isinstance(target_code1, TargetCode), "target_list1 should be list of TargetCode"
+        assert target_code1.df.filter("col_4 == 'a'").collect()[0]["col_4_te_target"] == \
+                feature_tbl.df.filter("col_4 == 'a'").agg({"target":"mean"}) \
+                .collect()[0]["avg(target)"], \
+                "col_4_te_target should contain mean of target grouped by col_4"
+
+        cat_cols = ["col_4", "col_5"]
+        target_cols = ["col_3", "target"]
+        fold_col = "fold"
+        target_mean = {"col_3":5, "target":0.5}
+        out_cols = [[cat_col + target_col for target_col in target_cols] for cat_col in cat_cols]
+        target_tbl2, target_list2 = feature_tbl.gen_target(cat_cols,
+                target_cols,
+                target_mean=target_mean,
+                kfold=3,
+                fold_seed=4,
+                fold_col=fold_col,
+                out_cols=out_cols,
+                name_sep=".")
+        assert fold_col in target_tbl2.df.columns, "fold_col should be in target_tbl2 for kfold>1"
+        assert len(target_list2) == len(cat_cols), "len(target_list2) = len(cat_cols) of gen_target"
+        for i in range(len(cat_cols)):
+            assert target_list2[i].cat_col == cat_cols[i], "each element in target_list2 should " \
+                    "correspond to the element in cat_cols"
+            for out_col in out_cols[i]:
+                assert out_col in target_list2[i].df.columns, "every out_cols should be one of " \
+                        "the columns in returned TargetCode"
+                assert target_mean[target_list2[i].out_target_mean[out_col][0]] == \
+                        target_list2[i].out_target_mean[out_col][1], "the global mean in " \
+                        "TargetCode should be the same as the assigned mean in target_mean"
+
+    def test_encode_target(self):
+        file_path = os.path.join(self.resource_path, "friesian/feature/parquet/data2.parquet")
+        feature_tbl = FeatureTable.read_parquet(file_path)
+        spark = OrcaContext.get_spark_session()
+
+        data = [("aa", 1.0),
+                ("bb", 2.0),
+                ("cc", 3.0),
+                ("dd", 4.0)]
+        schema = StructType([StructField("unknown", StringType(), True),
+                             StructField("col_5_target", DoubleType(), True)])
+        df0 = spark.createDataFrame(data, schema)
+        target_code0 = TargetCode(df0,
+                cat_col="unknown",
+                out_target_mean={"col_5_target":("target", 0.5)},
+                kfold=1,
+                fold_col=None)
+        with self.assertRaises(Exception) as context:
+            feature_tbl.encode_target(target_code0)
+        self.assertTrue("unknown in TargetCode.cat_col in targets does not exist in Table" \
+                in str(context.exception))
+
+        target_code1 = target_code0.rename({"unknown":"col_5"})
+        target_tbl1 = feature_tbl.encode_target(target_code1)
+        assert target_tbl1.df.filter("col_5_target == 1").count() == \
+                feature_tbl.df.filter("col_5 == 'aa'").count(), \
+                "the row with col_5 = 'aa' be encoded as col_5_target = 1 in target_tbl1"
+        assert target_tbl1.df.filter("col_3 == 8.0 and col_4 == 'd'") \
+                .filter("col_5_target == 3"), "the row with col_3 = 8.0 and col_4 = 'd' " \
+                "has col_5 = 'cc', so it should be encoded with col_5_target = 3 in target_tbl1"
+
+        target_tbl2, target_list2 = feature_tbl.gen_target(["col_4", "col_5"], ["col_3", "target"],
+                kfold=2)
+        with self.assertRaises(Exception) as context:
+            feature_tbl.encode_target(target_list2)
+        self.assertTrue("fold_col __fold__" in str(context.exception) and
+                "should exist in Table" in str(context.exception))
+        target_tbl2 = target_tbl2.encode_target(target_list2, target_cols="target", drop_cat=False,
+                drop_folds=False)
+        assert "col_4" in target_tbl2.df.columns, \
+                "col_4 should exist in target_tbl2 since drop_cat is False"
+        assert "__fold__" in target_tbl2.df.columns, \
+                "__fold__ should exist in target_tbl2 since drop_folds is False"
+        assert "col_4_te_target" in target_tbl2.df.columns, \
+                "col_4_te_target should exist in target_tbl2 as encoded column"
+        assert "col_4_te_col_3" not in target_tbl2.df.columns, \
+                "col_4_te_col_3 should not exist in target_tbl2 since col_3 is not in target_cols"
 
 if __name__ == "__main__":
     pytest.main([__file__])

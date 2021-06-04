@@ -62,3 +62,37 @@ def check_col_exists(df, columns):
     col_not_exist = list(filter(lambda x: x not in df_cols, columns))
     if len(col_not_exist) > 0:
         raise ValueError(str(col_not_exist) + " do not exist in this Table")
+
+
+def check_col_str_list_exists(df, column, arg_name):
+    if isinstance(column, str):
+        assert column in df.columns, column + " in " + arg_name + " does not exist in Table"
+    elif isinstance(column, list):
+        for sing_column in column:
+            assert sing_column in df.columns, sing_column + " in " + arg_name + \
+                    " does not exist in Table"
+    else:
+        raise TypeError("elements in cat_cols should be str or list of str but get " + str(column))
+
+
+def get_nonnumeric_col_type(df, columns):
+    return list(filter(
+        lambda x: x[0] in columns and not (x[1] == "smallint" or x[1] == "int" or
+                x[1] == "bigint" or x[1] == "float" or x[1] == "double"),
+        df.dtypes))
+
+
+def gen_cols_name(columns, name_sep="_"):
+    if isinstance(columns, str):
+        return columns
+    elif isinstance(columns, list):
+        return name_sep.join(columns)
+    else:
+        raise ValueError("item should be either str or list of str")
+
+
+def str_to_list(arg, arg_name):
+    if isinstance(arg, str):
+        return [arg]
+    assert isinstance(arg, list), arg_name + " should be str or list"
+    return arg
