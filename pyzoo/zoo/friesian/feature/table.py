@@ -15,12 +15,14 @@
 #
 import os
 
-from pyspark.sql.types import DoubleType, ArrayType, DataType
+from pyspark.sql.types import DoubleType, ArrayType, DataType, IntegerType
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import MinMaxScaler
 from pyspark.ml.feature import VectorAssembler
 from pyspark.sql.functions import col as pyspark_col, udf, array, broadcast
 from pyspark.sql import Row
+import pyspark.sql.functions as F
+from pyspark.sql.window import Window
 
 from zoo.orca import OrcaContext
 from zoo.friesian.feature.utils import *
@@ -637,6 +639,219 @@ class FeatureTable(Table):
             df = df.withColumn(c.replace("item", "category"), cat_udf(pyspark_col(c)))
         return FeatureTable(df)
 
+    def gen_target(self, cat_cols, target_cols, target_mean=None, smooth=20, kfold=1, fold_seed=42,
+            fold_col="__fold__", out_cols=None, name_sep="_"):
+        """
+        For each categorical column / column group in cat_cols, calculate the mean of target
+        columns in target_cols.
+        :param cat_cols: str, or list of (str or list of str). Categorical columns / column groups
+               to target encode. If an element in the list is a str, then it is a categorical
+               column; otherwise if it is a list of str, then it is a categorical column group.
+        :param target_cols: str, or list of str. Numeric target column to calculate the mean.
+        :param target_mean: dict. {target column : mean}. Provides mean of target column to
+               save caculation. Default is None.
+        :param smooth: int. The mean of each category is smoothed by the overall mean. Default is
+               20.
+        :param kfold: int. Specifies number of folds for cross validation. The mean values within
+               the i-th fold are calculated with data from all other folds. If kfold is 1,
+               global-mean statistics are applied; otherwise, cross validation is applied. Default
+               is 1.
+        :param fold_seed: int. Random seed used for generating folds. Default is 42.
+        :param fold_col: str. Name of integer column used for splitting folds. If fold_col exists
+               in the Table, then this column is used; otherwise, it is randomly generated with
+               range [0, kfold). Default is "__fold__".
+        :param out_cols: list of list of str. Each inner list corresponds to the categorical column
+               in the same position of cat_cols. Each element in the inner list corresponds to the
+               target column in the same position of target_cols. If it is None, the output
+               column will be cat_col + "_te_" + target_col. Default is None.
+        :param name_sep: str. When out_cols is None, for group of categorical columns, concatenate
+               them with name_sep to generate output columns. Default is "_".
+        :return: A new FeatureTable which may contain a new fold_col, a list of TargetCode which
+                 contains mean statistics.
+        """
+        assert isinstance(kfold, int) and kfold > 0, "kfold should be an integer larger than 0"
+        cat_cols = str_to_list(cat_cols, "cat_cols")
+        for cat_col in cat_cols:
+            check_col_str_list_exists(self.df, cat_col, "cat_cols")
+        target_cols = str_to_list(target_cols, "target_cols")
+        check_col_exists(self.df, target_cols)
+        nonnumeric_target_col_type = get_nonnumeric_col_type(self.df, target_cols)
+        assert not nonnumeric_target_col_type, "target_cols should be numeric but get " + ", ".join(
+                list(map(lambda x: x[0] + " of type " + x[1], nonnumeric_target_col_type)))
+
+        if out_cols is None:
+            out_cols = [[gen_cols_name(cat_col, name_sep) + "_te_" + target_col \
+                    for target_col in target_cols] for cat_col in cat_cols]
+        else:
+            assert isinstance(out_cols, list), "out_cols should be a list of list of str"
+            assert len(out_cols) == len(cat_cols), "out_cols should have the same length" \
+                    " with cat_cols"
+            for cat_col, out_col in zip(cat_cols, out_cols):
+                assert isinstance(out_col, list), "elements in out_cols should be list"
+                assert len(out_col) == len(target_cols), "the inner list of out_cols should " \
+                        "have the same length with target_cols"
+
+        # calculate global mean for each target column
+        target_mean_dict = target_mean
+        if target_mean is not None:
+            assert isinstance(target_mean, dict), "target_mean should be a dict"
+            for target_col in target_cols:
+                assert target_col in target_mean, "target column " + target_col + " should be " \
+                        "in target_mean " + str(target_mean)
+        else:
+            global_mean_list = [F.mean(F.col(target_col)).alias(target_col) \
+                    for target_col in target_cols]
+            target_mean = self.df.select(*global_mean_list).collect()[0]
+            target_mean_dict = {target_col:target_mean[target_col] for target_col in target_cols}
+        for target_col in target_mean_dict:
+            assert target_mean_dict[target_col] is not None, "mean of target column {} should " \
+                    "not be None".format(target_col)
+
+        # generate fold_col
+        result_df = self.df
+        if kfold > 1:
+            if fold_col not in self.df.columns:
+                result_df = result_df.withColumn(fold_col,
+                        (F.rand(seed=fold_seed) * kfold).cast(IntegerType()))
+            else:
+                assert list(filter(lambda x: x[0] == fold_col and x[1] == "int",
+                    self.df.dtypes)), "fold_col should be integer type but get " + fold_col 
+
+        def gen_target_code(cat_out):
+            cat_col = cat_out[0]
+            out_col_list = cat_out[1]
+            cat_col_name = gen_cols_name(cat_col, name_sep)
+
+            target_df = result_df
+            if kfold == 1:
+                sum_list = [F.sum(target_col).alias(cat_col_name + "_sum_" + target_col)
+                        for target_col in target_cols]
+                if isinstance(cat_col, str):
+                    target_df = target_df.groupBy(cat_col)
+                else:
+                    target_df = target_df.groupBy(*cat_col)
+                target_df = target_df.agg(*sum_list, F.count("*").alias(cat_col_name + "_count"))
+
+                for target_col, out_col in zip(target_cols, out_col_list):
+                    global_target_mean = target_mean_dict[target_col]
+                    target_func = udf(lambda s, count: None if s is None else \
+                            (s + global_target_mean * smooth) / (count + smooth),
+                            DoubleType())
+                    target_df = target_df.withColumn(out_col,
+                            target_func(cat_col_name + "_sum_" + target_col,
+                                cat_col_name + "_count")) \
+                            .drop(cat_col_name + "_sum_" + target_col)
+                target_df = target_df.drop(cat_col_name + "_count")
+            else:
+                fold_sum_list = [F.sum(target_col).alias(cat_col_name + "_sum_" + target_col)
+                        for target_col in target_cols]
+                sum_list = [F.sum(target_col).alias(cat_col_name + "_all_sum_" + target_col)
+                        for target_col in target_cols]
+                if isinstance(cat_col, str):
+                    fold_df = target_df.groupBy(cat_col, fold_col)
+                    all_df = target_df.groupBy(cat_col)
+                else:
+                    fold_df = target_df.groupBy(*cat_col, fold_col)
+                    all_df = target_df.groupBy(*cat_col)
+                fold_df = fold_df.agg(*fold_sum_list, F.count("*").alias(cat_col_name + "_count"))
+                all_df = all_df.agg(*sum_list, F.count("*").alias(cat_col_name + "_all_count"))
+                target_df = fold_df.join(all_df, cat_col, how="left")
+
+                for target_col, out_col in zip(target_cols, out_col_list):
+                    global_target_mean = target_mean_dict[target_col]
+                    target_func = udf(lambda s_all, s, c_all, c: \
+                            None if c_all == c or s_all == None or s == None else \
+                            ((s_all - s) + global_target_mean * smooth) / ((c_all - c) + smooth),
+                            DoubleType())
+                    target_df = target_df.withColumn(out_col,
+                            target_func(cat_col_name + "_all_sum_" + target_col,
+                                cat_col_name + "_sum_" + target_col,
+                                cat_col_name + "_all_count",
+                                cat_col_name + "_count"))
+                    target_df = target_df.drop(cat_col_name + "_sum_" + target_col,
+                            cat_col_name + "_all_sum_" + target_col)
+                target_df = target_df.drop(cat_col_name + "_count", cat_col_name + "_all_count")
+
+            out_target_mean_dict = {
+                    out_col:(target_col, target_mean_dict[target_col]) \
+                    for target_col, out_col in zip(target_cols, out_col_list)
+                    }
+            return TargetCode(target_df, cat_col, out_target_mean_dict, kfold, fold_col)
+
+        return FeatureTable(result_df), list(map(gen_target_code, zip(cat_cols, out_cols)))
+
+    def encode_target(self, targets, target_cols=None, drop_cat=True, drop_folds=True):
+        """
+        Encode columns with provided list of TargetCode.
+        :param cat_cols: str, or list of (str or list of str). Categorical columns / column groups
+               to target encode. If an element in the list is a str, then it is a categorical
+               column; otherwise if it is a list of str, then it is a categorical column group.
+        :param targets: TargetCode or list of TargetCode.
+        :param target_cols: str or list of str. Selects part of target columns of which mean will
+               be applied. If it is None, the mean statistics of all target columns contained
+               in targets are applied. Default is None.
+        :param drop_cat: Boolean. Drop the categorical columns if it is true. Default is True.
+        :param drop_folds: Boolean. Drop the fold column if it is true. Default is True.
+        :return: A new FeatureTable which transforms each categorical column into group-specific
+                 mean of target columns with provided TargetCodes.
+        """
+        if isinstance(targets, TargetCode):
+            targets = [targets]
+        elif isinstance(targets, list):
+            for target_code in targets:
+                assert isinstance(target_code, TargetCode), "element in targets should be " \
+                        "TargetCode but get {}".format(type(target_code))
+        else:
+            raise TypeError("targets should be TargetCode or list of TargetCode")
+        for target_code in targets:
+            check_col_str_list_exists(self.df, target_code.cat_col, "TargetCode.cat_col in targets")
+        if target_cols is not None:
+            target_cols = str_to_list(target_cols, "target_cols")
+
+        result_df = self.df
+        for target_code in targets:
+            cat_col = target_code.cat_col
+
+            if target_code.kfold == 1:
+                result_df = result_df.join(target_code.df, cat_col, how="left")
+            else:
+                assert target_code.fold_col in self.df.columns, "fold_col {} in TargetCode " \
+                        "corresponding to categorical columns {} should exist in Table" \
+                        .format(target_code.fold_col, str(cat_col))
+                if isinstance(cat_col, str):
+                    result_df = result_df.join(target_code.df, [cat_col, target_code.fold_col],
+                            how="left")
+                else:
+                    result_df = result_df.join(target_code.df, cat_col + [target_code.fold_col],
+                            how="left")
+
+            # for new columns, fill na with mean
+            target_mean = target_code.out_target_mean
+            for target_col in target_code.df.columns:
+                if target_col in target_mean:
+                    target_col_mean = target_mean[target_col]
+                    if target_cols is not None:
+                        if target_col_mean[0] in target_cols:
+                            result_df = result_df.fillna(target_col_mean[1], target_col)
+                        else:
+                            result_df = result_df.drop(target_col)
+                    else:
+                        result_df = result_df.fillna(target_col_mean[1], target_col)
+
+        if drop_cat:
+            for target_code in targets:
+                if isinstance(target_code.cat_col, str):
+                    result_df = result_df.drop(target_code.cat_col)
+                else:
+                    result_df = result_df.drop(*target_code.cat_col)
+
+        if drop_folds:
+            for target_code in targets:
+                if target_code.kfold > 1: 
+                    result_df = result_df.drop(target_code.fold_col)
+
+        return FeatureTable(result_df)
+
 
 class StringIndex(Table):
     def __init__(self, df, col_name):
@@ -704,3 +919,71 @@ class StringIndex(Table):
         """
         path = path + "/" + self.col_name + ".parquet"
         self.df.write.parquet(path, mode=mode)
+
+
+class TargetCode(Table):
+    def __init__(self, df, cat_col, out_target_mean, kfold, fold_col):
+        """
+        Consists of categorical columns, output columns (mean statistics of categorical columns)
+        and fold column.
+        :param df: DataFrame.
+        :param cat_col: str or list of str. Categorical column/column group to be encoded in the
+               original Table.
+        :param out_target_mean: dictionary. out_col:(target_col, global_mean), i.e.
+               (target column's name in TargetCode):
+               (target column's name in original Table,
+               target column's global mean in original Table)
+        :param kfold: int. If kfold = 1, global mean is used; otherwise, fold_col exists in df
+               and cross validation is used.
+        :param fold_col: str. Specifies the name of fold column for kfold > 1.
+        """
+        super().__init__(df)
+        self.cat_col = cat_col
+        self.out_target_mean = out_target_mean
+        self.kfold = kfold
+        self.fold_col = fold_col
+
+        check_col_str_list_exists(df, cat_col, "cat_col")
+        assert isinstance(kfold, int) and kfold > 0, "kfold should be an integer larger than 0"
+        if kfold > 1:
+            assert isinstance(fold_col, str) and fold_col in df.columns, "For kfold > 1, " \
+                    "fold_col should be one of the columns in {} in TargetCode but get {}" \
+                    .format(df.columns, str(fold_col))
+
+        # (keys of out_target_mean) should include (output columns)
+        assert isinstance(out_target_mean, dict), "out_target_mean should be dict"
+        for column in df.columns:
+            if (isinstance(cat_col, str) and column != cat_col) or \
+                    (isinstance(cat_col, list) and column not in cat_col):
+                if kfold == 1 or (kfold > 1 and column != fold_col):
+                    assert column in out_target_mean, column + " should be in out_target_mean"
+                    column_mean = out_target_mean[column][1]
+                    assert isinstance(column_mean, int) or isinstance(column_mean, float), \
+                            "mean in target_mean should be numeric but get {} of type {} in {}" \
+                            .format(column_mean, type(column_mean), out_target_mean)
+
+    def _clone(self, df):
+        return TargetCode(df, self.cat_col, self.out_target_mean, self.kfold,
+                self.fold_col)
+
+    def rename(self, columns):
+        assert isinstance(columns, dict), "columns should be a dictionary of {'old_name1': " \
+                                          "'new_name1', 'old_name2': 'new_name2'}"
+        new_df = self.df
+        new_cat_col = self.cat_col
+        new_out_target_mean = self.out_target_mean
+        new_kfold = self.kfold
+        new_fold_col = self.fold_col
+        for old_name, new_name in columns.items():
+            new_df = new_df.withColumnRenamed(old_name, new_name)
+            if old_name == self.fold_col:
+                new_fold_col = new_name
+            elif isinstance(self.cat_col, str) and old_name == self.cat_col:
+                new_cat_col = new_name
+            elif isinstance(self.cat_col, list):
+                for i in range(len(self.cat_col)):
+                    if self.cat_col[i] == old_name:
+                        new_cat_col[i] = new_name
+            elif old_name in self.out_target_mean:
+                new_out_target_mean[new_name] = new_out_target_mean.pop(old_name)
+        return TargetCode(new_df, new_cat_col, new_out_target_mean, new_kfold, new_fold_col)
