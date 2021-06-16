@@ -21,6 +21,8 @@ from pyspark.ml.feature import MinMaxScaler
 from pyspark.ml.feature import VectorAssembler
 from pyspark.sql.functions import col as pyspark_col, udf, array, broadcast
 from pyspark.sql import Row
+import pyspark.sql.functions as F
+from pyspark.sql.window import Window
 
 from zoo.orca import OrcaContext
 from zoo.friesian.feature.utils import *
@@ -636,6 +638,61 @@ class FeatureTable(Table):
             cat_udf = udf(gen_cat, col_type)
             df = df.withColumn(c.replace("item", "category"), cat_udf(pyspark_col(c)))
         return FeatureTable(df)
+
+    def difference_lag(self, columns, sort_cols, shifts=1, partition_cols=None, out_cols=None):
+        """
+        Calculates the difference between two consecutive rows, or two rows with certain interval
+        of the specified continuous columns. The table is first partitioned by partition_cols if it
+        is not None, and then sorted by sort_cols before the calculation.
+        :param columns: str or list of str. Continuous columns to calculate the difference.
+        :param sort_cols: str or list of str. Columns by which the table is sorted.
+        :param shifts: int or list of int. Intervals between two rows.
+        :param partition_cols: Columns by which the table is partitioned.
+        :param out_cols: list of list of str. Each inner list corresponds to a column in columns.
+               Each element in the inner list corresponds to a shift in shifts. If it is None, the
+               output column will be sort_cols + "_dl_" + column + "_" + shift. Default is None.
+        :return: a new Table with difference columns.
+        """
+        columns = str_to_list(columns, "columns")
+        sort_cols = str_to_list(sort_cols, "sort_cols")
+        nonnumeric_col_type = get_nonnumeric_col_type(self.df, columns)
+        assert not nonnumeric_col_type, "columns should be numeric but get " + \
+                ", ".join(list(map(lambda x: x[0] + " of type " + x[1], nonnumeric_col_type)))
+        if isinstance(shifts, int):
+            shifts = [shifts]
+        elif isinstance(shifts, list):
+            for s in shifts:
+                assert isinstance(s, int), "elements in shift should be integer but get " + str(s)
+        else:
+            raise ValueError("shift should be either int or list of int")
+        if partition_cols is not None:
+            partition_cols = str_to_list(partition_cols, "partition_cols")
+        if out_cols is None:
+            sort_name = gen_cols_name(sort_cols)
+            out_cols = [[sort_name + "_dl_" + column + "_" + str(shift) \
+                    for shift in shifts] for column in columns]
+        else:
+            assert isinstance(out_cols, list), "out_cols should be list of list of str"
+            assert len(out_cols) == len(columns), "length of out_cols should be equal to length " \
+                    "of columns"
+            for outs in out_cols:
+                assert isinstance(outs, list), "out_cols should be list of list of str"
+                assert len(outs) == len(shifts), "length of element in out_cols should be " \
+                        "equal to length of shifts"
+
+        result_df = self.df
+        if partition_cols is None:
+            partition_window = Window.orderBy(*sort_cols)
+        else:
+            partition_window = Window.partitionBy(*partition_cols).orderBy(*sort_cols)
+        for column, outs in zip(columns, out_cols):
+            diff_func = udf(lambda a, b: a - b if a is not None and b is not None else None,
+                    self.df.schema[column].dataType)
+            for shift, out in zip(shifts, outs):
+                result_df = result_df.withColumn(out, F.lag(column, shift).over(partition_window))
+                result_df = result_df.withColumn(out, diff_func(column, out))
+
+        return FeatureTable(result_df)
 
 
 class StringIndex(Table):
