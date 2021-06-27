@@ -848,6 +848,7 @@
                             <artifactSet>
                                 <excludes>
                                     <exclude>org.scala-lang:scala-library</exclude>
+                                    <exclude>org.apache.commons:commons-lang3</exclude>
                                 </excludes>
                             </artifactSet>
                         </configuration>
