@@ -30,16 +30,24 @@ import com.intel.analytics.zoo.serving.utils.{ClusterServingHelper, Conventions}
 import org.apache.flink.api.common.functions.RichMapFunction
 import org.apache.flink.configuration.Configuration
 import org.apache.log4j.Logger
+import com.codahale.metrics.{MetricRegistry, Timer}
+import com.intel.analytics.zoo.serving.http.{JsonUtil, ServingTimerMetrics, Supportive}
 
 
 class FlinkInference(helper: ClusterServingHelper)
-  extends RichMapFunction[List[(String, String, String)], List[(String, String)]] {
+  extends RichMapFunction[List[(String, String, String)], List[(String, String)]]
+  with Supportive{
 
-  var logger: Logger = null
+  var newLogger: Logger = null
   var inference: ClusterServingInference = null
+  var metrics: MetricRegistry = null
+  var timer: com.codahale.metrics.Timer = null
+  var cnt = 0
 
   override def open(parameters: Configuration): Unit = {
-    logger = Logger.getLogger(getClass)
+    newLogger = Logger.getLogger(getClass)
+    metrics = new MetricRegistry()
+    timer = metrics.timer("backend")
 //    val t = Tensor[Float](1, 2, 3).rand()
 //    val x = T.array(Array(t))
 //    println(s"start directly deser --->")
@@ -53,7 +61,7 @@ class FlinkInference(helper: ClusterServingHelper)
             val localModelDir = getRuntimeContext.getDistributedCache
               .getFile(Conventions.SERVING_MODEL_TMP_DIR).getPath
 
-            logger.info(s"Model loaded at executor at path ${localModelDir}")
+            newLogger.info(s"Model loaded at executor at path ${localModelDir}")
             helper.modelPath = localModelDir
             ClusterServing.model = helper.loadInferenceModel()
           }
@@ -63,25 +71,38 @@ class FlinkInference(helper: ClusterServingHelper)
     }
 
     catch {
-      case e: Exception => logger.error(e)
+      case e: Exception => newLogger.error(e)
        throw new Error("Model loading failed")
     }
 
   }
 
   override def map(in: List[(String, String, String)]): List[(String, String)] = {
+    if (cnt > 1000){
+      val servingMetrics = ServingTimerMetrics("backend", timer)
+      val jsonMetrics = JsonUtil.toJson(servingMetrics)
+      print(jsonMetrics)
+      metrics = new MetricRegistry()
+      timer = metrics.timer("backend")
+      cnt = 0
+    }
+    cnt += 1
+
     val t1 = System.nanoTime()
     val postProcessed = {
       if (helper.modelType == "openvino") {
         inference.multiThreadPipeline(in)
       } else {
-        inference.singleThreadPipeline(in)
+        timing("backend")(timer){
+          inference.singleThreadPipeline(in)
+        }
       }
     }
 
     val t2 = System.nanoTime()
-    logger.info(s"${in.size} records backend time ${(t2 - t1) / 1e9} s. " +
+    newLogger.info(s"${in.size} records backend time ${(t2 - t1) / 1e9} s. " +
       s"Throughput ${in.size / ((t2 - t1) / 1e9)}")
+
     postProcessed
   }
 }

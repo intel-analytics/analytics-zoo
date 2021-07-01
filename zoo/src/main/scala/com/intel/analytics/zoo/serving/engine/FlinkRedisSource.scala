@@ -61,6 +61,7 @@ class FlinkRedisSource(params: ClusterServingHelper)
         val key = streamMessages.getKey
         val entries = streamMessages.getValue.asScala
         val it = entries.map(e => {
+          logger.info(s"${e.getFields.get("uri")} Flink source gets redis result at time ${System.currentTimeMillis()}")
           (e.getFields.get("uri"), e.getFields.get("data"), e.getFields.get("serde"))
         }).toList
         sourceContext.collect(it)

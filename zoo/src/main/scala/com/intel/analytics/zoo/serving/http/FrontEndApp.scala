@@ -404,5 +404,6 @@ case class FrontEndAppArguments(
                                  redisSecureEnabled: Boolean = false,
                                  redissTrustStorePath: String = null,
                                  redissTrustStoreToken: String = "1234qwer",
-                                 servableManagerPath: String = "./servables-conf.yaml"
+                                 servableManagerPath: String = "./servables-conf.yaml",
+                                 isSilent: Boolean = false
                                )

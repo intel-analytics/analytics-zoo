@@ -21,8 +21,8 @@ import java.security.{KeyStore, SecureRandom}
 import java.util
 import java.util.UUID
 import java.util.concurrent.{LinkedBlockingQueue, TimeUnit}
-
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
+
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.http.scaladsl.server.Directives.{complete, path, _}
@@ -36,15 +36,16 @@ import com.intel.analytics.zoo.serving.utils.Conventions
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.intel.analytics.bigdl.nn.abstractnn.Activity
 import com.intel.analytics.zoo.serving.ClusterServing
-import org.apache.log4j.Logger
-import org.slf4j.LoggerFactory
-import redis.clients.jedis.JedisPool
+import org.apache.log4j.{Level, Logger}
+import redis.clients.jedis.{JedisPool, JedisPoolConfig}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
+import scopt.OptionParser
 
 object Frontend2 extends Supportive with EncryptSupportive {
-  override val logger = LoggerFactory.getLogger(getClass)
+
+  val levelLogger = Logger.getLogger(getClass)
 
   val name = "analytics zoo web serving frontend"
 
@@ -57,19 +58,23 @@ object Frontend2 extends Supportive with EncryptSupportive {
     timing(s"$name started successfully.")() {
       val arguments = timing("parse arguments")() {
         argumentsParser.parse(args, FrontEndAppArguments()) match {
-          case Some(arguments) => logger.info(s"starting with $arguments"); arguments
+          case Some(arguments) => levelLogger.info(s"starting with $arguments"); arguments
           case None => argumentsParser.failure("miss args, please see the usage info"); null
         }
       }
+      if (arguments.isSilent){
+        levelLogger.setLevel(Level.ERROR)
+      }
       val jedisPool = new JedisPool(
-        ClusterServing.jedisPoolConfig, arguments.redisHost, arguments.redisPort)
+        new JedisPoolConfig(), arguments.redisHost, arguments.redisPort)
       val rateLimiter: RateLimiter = arguments.tokenBucketEnabled match {
         case true => RateLimiter.create(arguments.tokensPerSecond)
         case false => null
       }
       val actorName = s"redis-getter"
       val ioActor = timing(s"$actorName initialized.")() {
-        val getterProps = Props(new RedisIOActor(jedisPool = jedisPool))
+        val getterProps = Props(new RedisIOActor(jedisPool = jedisPool,
+          isSilent = arguments.isSilent))
         system.actorOf(getterProps, name = actorName)
       }
 
@@ -168,10 +173,10 @@ object Frontend2 extends Supportive with EncryptSupportive {
           arguments.httpsKeyStorePath)
         Http().bindAndHandle(route, arguments.interface, port = arguments.securePort,
           connectionContext = serverContext)
-        logger.info(s"https started at https://${arguments.interface}:${arguments.securePort}")
+        levelLogger.info(s"https started at https://${arguments.interface}:${arguments.securePort}")
       }
       Http().bindAndHandle(route, arguments.interface, arguments.port)
-      logger.info(s"http started at http://${arguments.interface}:${arguments.port}")
+      levelLogger.info(s"http started at http://${arguments.interface}:${arguments.port}")
       while(true) {
         ioActor ! DequeueMessage()
         Thread.sleep(1)
@@ -253,6 +258,9 @@ object Frontend2 extends Supportive with EncryptSupportive {
     opt[String]('w', "redissTrustStoreToken")
       .action((x, c) => c.copy(redissTrustStoreToken = x))
       .text("rediss trustStore password")
+    opt[Unit]("silent")
+      .action((x, params) => params.copy(isSilent = true))
+      .text("Only Display ERROR Messages of Logger")
   }
 
   def defineServerContext(httpsKeyStoreToken: String,

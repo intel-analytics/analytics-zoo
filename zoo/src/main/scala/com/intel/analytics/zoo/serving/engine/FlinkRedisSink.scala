@@ -54,7 +54,7 @@ class FlinkRedisSink(params: ClusterServingHelper)
       }
     })
     ppl.sync()
-    logger.info(s"${cnt} valid records written to redis")
+    logger.info(s"${cnt} valid records written to redis at time ${System.currentTimeMillis()}")
   }
 
 }
