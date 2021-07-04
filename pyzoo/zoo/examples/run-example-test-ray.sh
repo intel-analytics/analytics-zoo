@@ -153,6 +153,32 @@ now=$(date "+%s")
 time11=$((now-start))
 
 
+echo "#12 Start orca sentiment example"
+start=$(date "+%s")
+
+if [ -d ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/.data ]
+then
+    echo "IMDB dataset already exists"
+else
+    wget -nv $FTP_URI/analytics-zoo-data/sentiment.tar -P ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/
+    tar -xf ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/sentiment.tar
+fi
+
+if [ -d ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/.vector_cache ]
+then
+    echo "Glove Vectors already exists"
+else
+    wget -nv $FTP_URI/analytics-zoo-data/vector.tar -P ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/
+    tar -xf ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/vector.tar
+fi
+
+cat ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/main.py | sed 's/300/100/' | sed 's/=5/=1/' | sed 's/0.8/0.03/' > ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/main_100.py
+python ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/main_100.py 
+rm ${ANALYTICS_ZOO_ROOT}/pyzoo/zoo/examples/orca/learn/pytorch/sentiment/main_100.py
+now=$(date "+%s")
+time12=$((now-start))
+
+
 echo "Ray example tests finished"
 echo "#1 orca rl_pong time used:$time1 seconds"
 echo "#2 orca async_parameter_server time used:$time2 seconds"
@@ -165,3 +191,5 @@ echo "#8 orca cifar10 example time used:$time8 seconds"
 echo "#9 orca auto-xgboost-classifier time used:$time9 seconds"
 echo "#10 orca auto-xgboost-regressor time used:$time10 seconds"
 echo "#11 orca autoestimator-pytorch time used:$time11 second"
+echo "#12 orca sentiment time used:$time12 seconds"
+
