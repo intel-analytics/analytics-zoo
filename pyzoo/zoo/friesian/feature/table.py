@@ -706,7 +706,12 @@ class FeatureTable(Table):
         result_df = self.df
         if kfold > 1:
             if fold_col not in self.df.columns:
-                result_df = result_df.withColumn(fold_col,
+                if fold_seed is None:
+                    windowSpec = Window.orderBy(F.lit(1))
+                    result_df = result_df.withColumn(fold_col,
+                            F.row_number().over(windowSpec)%F.lit(kfold))
+                else:
+                    result_df = result_df.withColumn(fold_col,
                         (F.rand(seed=fold_seed) * kfold).cast(IntegerType()))
             else:
                 assert list(filter(lambda x: x[0] == fold_col and x[1] == "int",
@@ -944,6 +949,7 @@ class TargetCode(Table):
             assert isinstance(fold_col, str) and fold_col in df.columns, "For kfold > 1, " \
                     "fold_col should be one of the columns in {} in TargetCode but get {}" \
                     .format(df.columns, str(fold_col))
+            self.df = self.df.withColumnRenamed(fold_col, fold_col)
 
         # (keys of out_target_mean) should include (output columns)
         assert isinstance(out_target_mean, dict), "out_target_mean should be dict"
