@@ -81,7 +81,6 @@ def resample_helper(curr_time,
                     start_time_stamp,
                     end_time_stamp,
                     zero_time_stamp):
-    assert isinstance(curr_time,type(zero_time_stamp)), "datetime is a non-time series format."
     offset = divmod((curr_time - zero_time_stamp), pd.Timedelta(interval))[1]
     if(offset / interval) >= 0.5:
         resampled_time = curr_time + (interval - offset)

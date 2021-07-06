@@ -65,6 +65,8 @@ class TSDataset:
 
         self._id_list = list(np.unique(self.df[self.id_col]))
         self._is_pd_datetime = pd.api.types.is_datetime64_any_dtype(self.df[self.dt_col].dtypes)
+        self._is_aligned = bool(len(set([len(self.df[self.df[self.id_col] == val])\
+             for val in self._id_list])) == 1)
 
     @staticmethod
     def from_pandas(df,
@@ -202,6 +204,10 @@ class TSDataset:
         :return: the tsdataset instance.
         '''
         df_list = []
+        assert self._is_pd_datetime,\
+             "the selected time series is a non-pandas standard time format."
+        assert self._is_aligned,\
+            "Use idsensitive to ensure that the length of each id is the same."
         for id_name in self._id_list:
             df_id = resample_timeseries_dataframe(df=self.df[self.df[self.id_col] == id_name]
                                                   .drop(self.id_col, axis=1),
@@ -234,6 +240,8 @@ class TSDataset:
 
         :return: the tsdataset instance.
         '''
+
+        assert self._is_pd_datetime, "the selected time series is a non-pandas standard time format."
         df_list = [generate_dt_features(input_df=self.df[self.df[self.id_col] == id_name],
                                         dt_col=self.dt_col)
                    for id_name in self._id_list]
@@ -318,8 +326,8 @@ class TSDataset:
         else:
             default_fc_parameters = settings
 
-        assert window_size < self.df.shape[0] + 1, "window_size small sample size"
-        # BUG keyerror -->non_pd_datetime [ln325] not_aligned
+        assert window_size < min([len(self.df[self.df[self.id_col] == i]) for i in self._id_list])\
+            + 1, "gen_rolling_feature should have a window_size smaller than time series length."
         df_rolled = roll_time_series(self.df,
                                      column_id=self.id_col,
                                      column_sort=self.dt_col,
@@ -436,12 +444,13 @@ class TSDataset:
                                                                feature_col=feature_col,
                                                                target_col=target_col))
 
-        size_list = [rolling_result[i][0] for i in range(num_id)]
-        assert len(size_list[0]) == len(size_list[-1]), "datetime not aligned."
-        # 1. BUG gen_global_feature: -->non_aligned (id_sensitive=True)
-        # 2. BUG gen_resmape
         # concat the result on required axis
-        concat_axis = 2 if id_sensitive else 0
+        if id_sensitive:
+            concat_axis = 2
+            assert self._is_aligned, 'Use idsensitive to ensure that\
+                 the length of each id is the same.'
+        else:
+            concat_axis = 0
         self.numpy_x = np.concatenate([rolling_result[i][0]
                                        for i in self._id_list],
                                       axis=concat_axis).astype(np.float64)

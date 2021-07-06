@@ -562,7 +562,7 @@ class TestTSDataset(ZooTestCase):
 
         with pytest.raises(AssertionError):
             tsdata.resample('2D')
-        with pytest.raises(AttributeError):
+        with pytest.raises(AssertionError):
             tsdata.gen_dt_feature()
         with pytest.raises(AssertionError):
             tsdata.gen_rolling_feature(window_size=1000)
