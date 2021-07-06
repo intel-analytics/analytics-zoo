@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-from numpy.core.fromnumeric import size
 import pandas as pd
 import numpy as np
 import functools

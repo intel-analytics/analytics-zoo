@@ -57,6 +57,7 @@ def generate_dt_features(input_df, dt_col):
             df[attr + "({})".format(dt_col)] =\
                 pd.Int64Index(field_datetime.isocalendar().week)
         else:
+            assert hasattr(field, 'dt'), "Non-time series entered."
             df[attr + "({})".format(dt_col)] = getattr(field.dt, attr.lower())
 
     # additional time features
