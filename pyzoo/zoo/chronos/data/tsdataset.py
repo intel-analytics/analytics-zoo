@@ -65,8 +65,8 @@ class TSDataset:
 
         self._id_list = list(np.unique(self.df[self.id_col]))
         self._is_pd_datetime = pd.api.types.is_datetime64_any_dtype(self.df[self.dt_col].dtypes)
-        self._is_aligned = bool(len(set([len(self.df[self.df[self.id_col] == val])\
-             for val in self._id_list])) == 1)
+        self._is_aligned = bool(len(set([len(self.df[self.df[self.id_col] == val])
+                                         for val in self._id_list])) == 1)
 
     @staticmethod
     def from_pandas(df,
@@ -205,9 +205,8 @@ class TSDataset:
         '''
         df_list = []
         assert self._is_pd_datetime,\
-             "the selected time series is a non-pandas standard time format."
-        assert self._is_aligned,\
-            "Use idsensitive to ensure that the length of each id is the same."
+            "The time series data does not have a Pandas datetime format\
+            (you can use pandas.to_datetime to convert a string into a datetime format)."
         for id_name in self._id_list:
             df_id = resample_timeseries_dataframe(df=self.df[self.df[self.id_col] == id_name]
                                                   .drop(self.id_col, axis=1),
@@ -241,7 +240,8 @@ class TSDataset:
         :return: the tsdataset instance.
         '''
 
-        assert self._is_pd_datetime, "the selected time series is a non-pandas standard time format."
+        assert self._is_pd_datetime, "The time series data does not have a Pandas datetime format\
+                    (you can use pandas.to_datetime to convert a string into a datetime format)"
         df_list = [generate_dt_features(input_df=self.df[self.df[self.id_col] == id_name],
                                         dt_col=self.dt_col)
                    for id_name in self._id_list]
@@ -326,8 +326,9 @@ class TSDataset:
         else:
             default_fc_parameters = settings
 
-        assert window_size < min([len(self.df[self.df[self.id_col] == i]) for i in self._id_list])\
-            + 1, "gen_rolling_feature should have a window_size smaller than time series length."
+        assert window_size < min([len(self.df[self.df[self.id_col] == i]) \
+                    for i in self._id_list]) + 1, "gen_rolling_feature should have a window_size \
+                        smaller than shortest time series length."
         df_rolled = roll_time_series(self.df,
                                      column_id=self.id_col,
                                      column_sort=self.dt_col,
@@ -413,6 +414,8 @@ class TSDataset:
         >>> print(x.shape, y.shape) # x.shape = (1, 1, 6) y.shape = (1, 1, 2)
 
         '''
+        assert id_sensitive and self._is_aligned, \
+            "The time series data should be aligned if id_sensitive is set to True."
         feature_col = _to_list(feature_col, "feature_col") if feature_col is not None \
             else self.feature_col
         target_col = _to_list(target_col, "target_col") if target_col is not None \
@@ -445,12 +448,7 @@ class TSDataset:
                                                                target_col=target_col))
 
         # concat the result on required axis
-        if id_sensitive:
-            concat_axis = 2
-            assert self._is_aligned, 'Use idsensitive to ensure that\
-                 the length of each id is the same.'
-        else:
-            concat_axis = 0
+        concat_axis = 2 if id_sensitive else 0
         self.numpy_x = np.concatenate([rolling_result[i][0]
                                        for i in self._id_list],
                                       axis=concat_axis).astype(np.float64)
