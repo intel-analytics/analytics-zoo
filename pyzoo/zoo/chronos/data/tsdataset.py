@@ -414,8 +414,9 @@ class TSDataset:
         >>> print(x.shape, y.shape) # x.shape = (1, 1, 6) y.shape = (1, 1, 2)
 
         '''
-        assert id_sensitive and self._is_aligned, \
-            "The time series data should be aligned if id_sensitive is set to True."
+        if id_sensitive and not self._is_aligned:
+            raise AssertionError("The time series data should be\
+                 aligned if id_sensitive is set to True.")
         feature_col = _to_list(feature_col, "feature_col") if feature_col is not None \
             else self.feature_col
         target_col = _to_list(target_col, "target_col") if target_col is not None \
