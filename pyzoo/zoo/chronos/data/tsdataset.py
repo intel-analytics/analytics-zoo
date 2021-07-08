@@ -26,6 +26,7 @@ from zoo.chronos.data.utils.scale import unscale_timeseries_numpy
 from zoo.chronos.data.utils.resample import resample_timeseries_dataframe
 from zoo.chronos.data.utils.split import split_timeseries_dataframe
 
+from sklearn.utils.validation import check_is_fitted
 from tsfresh.utilities.dataframe_functions import roll_time_series
 from tsfresh.utilities.dataframe_functions import impute as impute_tsfresh
 from tsfresh import extract_features
@@ -517,6 +518,8 @@ class TSDataset:
             self.df[self.target_col + feature_col] = \
                 scaler.fit_transform(self.df[self.target_col + feature_col])
         else:
+            assert check_is_fitted(scaler,attributes='fit',msg="Not Fitted"),\
+                "When calling scale for the first time, you need to set fit=True."
             self.df[self.target_col + feature_col] = \
                 scaler.transform(self.df[self.target_col + feature_col])
         self.scaler = scaler
