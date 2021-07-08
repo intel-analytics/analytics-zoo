@@ -65,8 +65,8 @@ class TSDataset:
 
         self._id_list = list(np.unique(self.df[self.id_col]))
         self._is_pd_datetime = pd.api.types.is_datetime64_any_dtype(self.df[self.dt_col].dtypes)
-        self._is_aligned = bool(len(set([len(self.df[self.df[self.id_col] == val])
-                                         for val in self._id_list])) == 1)
+        self._is_aligned = len(set([len(self.df[self.df[self.id_col] == val])
+                                    for val in self._id_list])) == 1
 
     @staticmethod
     def from_pandas(df,
