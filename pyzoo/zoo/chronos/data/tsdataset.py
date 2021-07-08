@@ -326,9 +326,9 @@ class TSDataset:
         else:
             default_fc_parameters = settings
 
-        assert window_size < min([len(self.df[self.df[self.id_col] == i]) \
-                    for i in self._id_list]) + 1, "gen_rolling_feature should have a window_size \
-                        smaller than shortest time series length."
+        assert window_size < min([len(self.df[self.df[self.id_col] == i])
+                                  for i in self._id_list]) + 1, "gen_rolling_feature should\
+                                  have a window_size smaller than shortest time series length."
         df_rolled = roll_time_series(self.df,
                                      column_id=self.id_col,
                                      column_sort=self.dt_col,
