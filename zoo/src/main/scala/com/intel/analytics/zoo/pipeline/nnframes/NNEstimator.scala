@@ -25,19 +25,19 @@ import com.intel.analytics.bigdl.python.api.EvaluatedResult
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.tensor.{Tensor, DoubleType => TensorDouble, FloatType => TensorFloat}
 import com.intel.analytics.bigdl.utils.serializer.ModuleLoader
-import com.intel.analytics.bigdl.utils.{File, T}
+import com.intel.analytics.bigdl.utils.{File, OptimizerV1, OptimizerV2, T}
 import com.intel.analytics.bigdl.visualization.{TrainSummary, ValidationSummary}
 import com.intel.analytics.bigdl.{Criterion, DataSet, Module}
 import com.intel.analytics.zoo.feature.FeatureSet
 import com.intel.analytics.zoo.feature.common.{Preprocessing, _}
 import com.intel.analytics.zoo.feature.pmem.{DRAM, MemoryType}
 import com.intel.analytics.zoo.pipeline.api.Net
-import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.EngineRef
-import com.intel.analytics.zoo.pipeline.api.keras.models.InternalDistriOptimizer
+import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.{EngineRef, EngineOptimizer}
+import com.intel.analytics.zoo.pipeline.api.keras.models.{InternalDistriOptimizer, InternalDistriOptimizerV2}
 import org.apache.hadoop.fs.Path
 import org.apache.log4j.Logger
 import org.apache.spark.SparkContext
-import org.apache.spark.ml.adapter.{HasFeaturesCol, HasPredictionCol, SchemaUtils}
+import org.apache.spark.ml.adapter.shared.{HasFeaturesCol, HasPredictionCol, SchemaUtils}
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.util._
 import org.apache.spark.ml.{DLEstimatorBase, DLTransformerBase, DefaultParamsWriterWrapper, VectorCompatibility}
@@ -425,9 +425,16 @@ class NNEstimator[T: ClassTag] private[zoo](
   protected override def internalFit(dataFrame: DataFrame): NNModel[T] = {
     val trainingDataSet = getDataSet(dataFrame, $(batchSize))
     val endTrigger = if (isSet(endWhen)) $(endWhen) else Trigger.maxEpoch($(maxEpoch))
-    val optimizer = new InternalDistriOptimizer(model, null, criterion)
-      .setOptimMethod($(optimMethod))
-      .setEndWhen(endTrigger)
+    val optimizer = EngineOptimizer.getOptimizerVersion() match {
+      case OptimizerV1 =>
+        new InternalDistriOptimizer(model, null, criterion)
+          .setOptimMethod($(optimMethod))
+          .setEndWhen(endTrigger)
+      case OptimizerV2 =>
+        new InternalDistriOptimizerV2(model, null, criterion)
+          .setOptimMethod($(optimMethod))
+          .setEndWhen(endTrigger)
+    }
 
     // only set learning rate if user specifically set the values, otherwise use the
     // learning rate from $(optimMethod)
@@ -493,7 +500,11 @@ class NNEstimator[T: ClassTag] private[zoo](
   // https://spark.apache.org/docs/latest/api/python/reference/pyspark.ml.html#evaluation
   def internalEval(dataFrame: DataFrame): JList[EvaluatedResult] = {
     val validationFeatureset = getDataSet(dataFrame, validationBatchSize)
-    val optimizer = new InternalDistriOptimizer(model, null, criterion)
+    val optimizer = EngineOptimizer.getOptimizerVersion() match {
+      case OptimizerV1 => new InternalDistriOptimizer(model, null, criterion)
+      case OptimizerV2 => new InternalDistriOptimizerV2(model, null, criterion)
+    }
+    
     if (validationTrigger.isDefined) {
       optimizer.setValidation(
         validationTrigger.get,

@@ -613,7 +613,7 @@ object InternalOptimizer {
     dataset: DistributedDataSet[MiniBatch[T]],
     criterion: Criterion[T]
   )(implicit ev: TensorNumeric[T]): Optimizer[T, MiniBatch[T]] = {
-    EngineRef.getOptimizerVersion() match {
+    EngineOptimizer.getOptimizerVersion() match {
       case OptimizerV1 =>
         new InternalDistriOptimizer[T](
           _model = model,
@@ -1608,6 +1608,22 @@ private[zoo] class InternalDistriOptimizerV2[T: ClassTag] (
     this
   }
 
+  def getTrainSummary(tag: String): Array[(Long, Float, Double)] = {
+    if (this.trainSummary isDefined) {
+      this.trainSummary.get.readScalar(tag)
+    } else {
+      null
+    }
+  }
+
+  def getValidationSummary(tag: String): Array[(Long, Float, Double)] = {
+    if (this.validationSummary isDefined) {
+      this.validationSummary.get.readScalar(tag)
+    } else {
+      null
+    }
+  }
+
 
   override def train(
         trainSet: FeatureSet[MiniBatch[T]],
@@ -1685,8 +1701,59 @@ private[zoo] class InternalDistriOptimizerV2[T: ClassTag] (
         validationMethod: Array[ValidationMethod[T]]
       ): Map[ValidationMethod[T], ValidationResult] = {
     val validateRDD = validationSet.toDistributed().data(train = false)
+    val sc = validateRDD.sparkContext
 
-    val models = this.cachedModels
+    val coresPerNode = EngineRef.getCoreNumber()
+    val _subModelNumber = EngineRef.getEngineType() match {
+      case MklBlas => if (TorchModel.isTorch(_model)) {
+        1
+      } else {
+        coresPerNode
+      }
+      case MklDnn => 1
+      case _ => throw new IllegalArgumentException
+    }
+
+    val models = if (null != cachedModels) {
+      val bcVMethods = cachedModels.sparkContext.broadcast(validationMethod)
+      cachedModels.map{cache =>
+        CacheV2[T](
+          cache.localModels,
+          cache.modelWeights,
+          cache.modelGradients,
+          cache.localCriterions,
+          cache.localStates,
+          cache.moduleTimeList,
+          Array.tabulate(_subModelNumber)(_ =>
+            Some(bcVMethods.value.map(_.clone()))),
+          cache.optimMethods,
+          cache.parameterSynchronizer,
+          cache.parameter,
+          cache.parameterSplits,
+          cache.parameterProcessers
+        )
+      }
+    } else {
+      val bcVMethods = validateRDD.sparkContext.broadcast(validationMethod)
+      val bcModel = ModelBroadcast[T]().broadcast(sc, _model)
+      validateRDD.mapPartitions{_ =>
+        Iterator.single(CacheV2[T](
+          Array.tabulate(_subModelNumber)(_ => bcModel.value()),
+          null,
+          null,
+          null,
+          null,
+          null,
+          Array.tabulate(_subModelNumber) { _ =>
+            Some(bcVMethods.value.map(_.clone()))},
+          null,
+          null,
+          null,
+          null,
+          null
+        ))
+      }
+    }
 
     // get current iteration from optimMethod
     val step = if (null != optimMethods && optimMethods.size != 0) {

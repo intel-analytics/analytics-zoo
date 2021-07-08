@@ -36,7 +36,7 @@
         <scala.macros.version>2.1.0</scala.macros.version>
         <scalatest.version>3.0.7</scalatest.version>
         <spark.version>2.4.3</spark.version>
-        <bigdl.version>0.12.2</bigdl.version>
+        <bigdl.version>0.13.0-SNAPSHOT</bigdl.version>
         <bigdl.artifactId>bigdl-SPARK_2.4</bigdl.artifactId>
         <maven-site-plugin.version>3.4</maven-site-plugin.version>
         <wagon-ssh.version>1.0</wagon-ssh.version>

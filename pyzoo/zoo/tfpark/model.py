@@ -26,6 +26,7 @@ from zoo.tfpark.tf_dataset import TFNdarrayDataset, TFDataset, _standarize_featu
 
 from zoo.tfpark.tf_optimizer import TFOptimizer
 from zoo.tfpark.tf_predictor import TFPredictor
+from zoo import set_optimizer_version
 
 
 class KerasModel(object):
@@ -40,6 +41,7 @@ class KerasModel(object):
         import tensorflow as tf
         self.real_batch_size = tf.shape(self.model.inputs[0])[0]
         self.metric_tensors = {}
+        set_optimizer_version("OptimizerV2")
 
     def add_metric(self, tensor, name):
         self.metric_tensors[name] = tensor

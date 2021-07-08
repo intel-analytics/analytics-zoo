@@ -23,7 +23,7 @@ import com.intel.analytics.bigdl.utils.{OptimizerV1, OptimizerV2}
 import com.intel.analytics.bigdl.visualization.{TrainSummary, ValidationSummary}
 import com.intel.analytics.zoo.feature.{DiskFeatureSet, DistributedFeatureSet, FeatureSet}
 import com.intel.analytics.zoo.pipeline.api.keras.models.{InternalDistriOptimizer, InternalDistriOptimizerV2}
-import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.EngineRef
+import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.EngineOptimizer
 import org.apache.log4j.Logger
 
 import scala.collection.mutable.ArrayBuffer
@@ -114,11 +114,21 @@ class Estimator[T: ClassTag] private[zoo](
   }
 
   def getTrainSummary(tag: String): Array[(Long, Float, Double)] = {
-    this.internalEstimator.asInstanceOf[InternalDistriOptimizer[T]].getTrainSummary(tag)
+    EngineOptimizer.getOptimizerVersion() match {
+      case OptimizerV1 =>
+        this.internalEstimator.asInstanceOf[InternalDistriOptimizer[T]].getTrainSummary(tag)
+      case OptimizerV2 =>
+        this.internalEstimator.asInstanceOf[InternalDistriOptimizerV2[T]].getTrainSummary(tag)
+    }
   }
 
   def getValidationSummary(tag: String): Array[(Long, Float, Double)] = {
-    this.internalEstimator.asInstanceOf[InternalDistriOptimizer[T]].getValidationSummary(tag)
+    EngineOptimizer.getOptimizerVersion() match {
+      case OptimizerV1 =>
+        this.internalEstimator.asInstanceOf[InternalDistriOptimizer[T]].getValidationSummary(tag)
+      case OptimizerV2 =>
+        this.internalEstimator.asInstanceOf[InternalDistriOptimizerV2[T]].getValidationSummary(tag)
+    }
   }
 
 
@@ -147,7 +157,7 @@ class Estimator[T: ClassTag] private[zoo](
     trainSet match {
       case d: DistributedFeatureSet[MiniBatch[T]] =>
         if (internalEstimator == null) {
-          internalEstimator = EngineRef.getOptimizerVersion() match {
+          internalEstimator = EngineOptimizer.getOptimizerVersion() match {
             case OptimizerV1 =>
               new InternalDistriOptimizer[T](model, null, criterion)
                 .setCheckpointDir(modelDir)
@@ -204,7 +214,7 @@ class Estimator[T: ClassTag] private[zoo](
     if (internalEstimator == null) {
       internalEstimator = validationSet match {
         case d: DistributedFeatureSet[MiniBatch[T]] =>
-          EngineRef.getOptimizerVersion() match {
+          EngineOptimizer.getOptimizerVersion() match {
             case OptimizerV1 =>
               new InternalDistriOptimizer[T](model, null, null)
                 .setCheckpointDir(modelDir)

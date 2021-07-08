@@ -126,6 +126,19 @@ estimator.evaluate_imagefeature(validation_set, validation_method, batch_size)
 `validation_method`: a set of validationMethod.  
 `batch_size`: mini batch size.
 
+### DistriOptimizer
+The default DistriOptimizer Version is DistriOptimizerV2.
+Switch DistriOptimizer Version in Scala example:
+```scala
+import com.intel.analytics.zoo.common.NNContext
+NNContext.setOptimizerVersion("optimizerv1")
+```
+Switch DistriOptimizer Version in Python example:
+```python
+from zoo import set_optimizer_version
+set_optimizer_version("OptimizerV1")
+```
+
 ### Other Important API
 
 #### setConstantGradientClipping

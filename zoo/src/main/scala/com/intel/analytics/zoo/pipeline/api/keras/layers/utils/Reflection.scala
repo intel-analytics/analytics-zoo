@@ -16,6 +16,8 @@
 
 package com.intel.analytics.zoo.pipeline.api.keras.layers.utils
 
+import java.util.Locale
+
 import com.intel.analytics.bigdl.nn.{Graph, MklInt8Convertible}
 import com.intel.analytics.bigdl.nn.Graph.ModuleNode
 import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity}
@@ -94,19 +96,48 @@ object EngineRef {
     KerasUtils.invokeMethod(Engine, "getEngineType").asInstanceOf[EngineType]
   }
 
-  def getOptimizerVersion(): OptimizerVersion = {
-    KerasUtils.invokeMethod(Engine, "getOptimizerVersion").asInstanceOf[OptimizerVersion]
-  }
-
-  def setOptimizerVersion(optimizerVersion : OptimizerVersion): Unit = {
-    KerasUtils.invokeMethod(Engine, "setOptimizerVersion",
-      optimizerVersion).asInstanceOf[OptimizerVersion]
-  }
+//  def getOptimizerVersion(): OptimizerVersion = {
+//    KerasUtils.invokeMethod(Engine, "getOptimizerVersion").asInstanceOf[OptimizerVersion]
+//  }
+//
+//  def setOptimizerVersion(optimizerVersion : OptimizerVersion): Unit = {
+//    KerasUtils.invokeMethod(Engine, "setOptimizerVersion",
+//      optimizerVersion).asInstanceOf[OptimizerVersion]
+//  }
 
   def setCoreNumber(num: Int): Unit = {
     val field = Engine.getClass.getDeclaredField("physicalCoreNumber")
     field.setAccessible(true)
     field.setInt(Engine, num)
+  }
+}
+
+
+object EngineOptimizer{
+  /**
+   * Notice: Please use property bigdl.optimizerVersion to set optimizerVersion.
+   * Default version is OptimizerV2
+   */
+  private var distriOptimizerVersion: OptimizerVersion = {
+    System.getProperty("bigdl.optimizerVersion", "optimizerv1").toLowerCase(Locale.ROOT) match {
+      case "optimizerv1" => OptimizerV1
+      case "optimizerv2" => OptimizerV2
+      case optimizerVersion => throw new IllegalArgumentException(s"Unknown type $optimizerVersion")
+    }
+  }
+
+
+  /**
+   * This method should only be used for test purpose.
+   *
+   * @param optimizerVersion
+   */
+  def setOptimizerVersion(optimizerVersion : OptimizerVersion): Unit = {
+    this.distriOptimizerVersion = optimizerVersion
+  }
+  
+  def getOptimizerVersion(): OptimizerVersion = {
+    this.distriOptimizerVersion
   }
 }
 
