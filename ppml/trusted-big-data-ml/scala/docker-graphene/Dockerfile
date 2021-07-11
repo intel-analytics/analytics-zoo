@@ -1,19 +1,27 @@
 # stage.1 graphene
 FROM ubuntu:18.04 AS graphene
+ENV GRAPHENE_BRANCH=branch-210510
 
 RUN env DEBIAN_FRONTEND=noninteractive apt-get update && \
     env DEBIAN_FRONTEND=noninteractive apt-get install -y autoconf bison build-essential coreutils gawk git libcurl4-openssl-dev libprotobuf-c-dev protobuf-c-compiler python3-protobuf wget
+RUN apt-get install -y build-essential autoconf gawk bison wget python3 libcurl4-openssl-dev python3-protobuf libprotobuf-c-dev protobuf-c-compiler python3-pip
+RUN pip3 install ninja meson && \
+    python3 -m pip install toml==0.10.2 click jinja2
 RUN git clone https://github.com/analytics-zoo/graphene.git /graphene
 RUN cd /graphene && \
-    git fetch origin branch-0.2 && \
-    git checkout branch-0.2
+    git fetch origin $GRAPHENE_BRANCH && \
+    git checkout $GRAPHENE_BRANCH
 RUN cd /graphene/Pal/src/host/Linux-SGX && \
     git clone https://github.com/intel/SGXDataCenterAttestationPrimitives.git linux-sgx-driver && \
     cd linux-sgx-driver && \
     git checkout DCAP_1.7 && \
     cp -r driver/linux/* .
 RUN cd /graphene && \
-    ISGX_DRIVER_PATH=/graphene/Pal/src/host/Linux-SGX/linux-sgx-driver make -s -j4 SGX=1 WERROR=1 && true
+    make && \
+    ISGX_DRIVER_PATH=/graphene/Pal/src/host/Linux-SGX/linux-sgx-driver make -s -j4 SGX=1 && \
+    meson build -Ddirect=enabled -Dsgx=enabled && \
+    ninja -C build && \
+    ninja -C build install
 RUN for f in $(find /graphene/Runtime -type l); do cp --remove-destination $(realpath $f) $f; done
 
 # stage.2 jdk & spark
@@ -123,7 +131,6 @@ COPY --from=graphene /graphene/Runtime/ /graphene/Runtime
 COPY --from=graphene /graphene/python /graphene/python
 COPY --from=graphene /graphene/Pal /graphene/Pal
 COPY --from=graphene /graphene/Pal/src/host/Linux-SGX/generated_offsets.py /graphene/python/
-COPY --from=graphene /graphene/Examples/common_tools/get_deps.sh /graphene/get_deps.sh
 COPY --from=graphene /graphene/Tools/argv_serializer /graphene/Tools
 COPY --from=spark /opt/jdk  /opt/jdk8
 COPY --from=spark /opt/spark-${SPARK_VERSION} /ppml/trusted-big-data-ml/work/spark-${SPARK_VERSION}
@@ -134,7 +141,10 @@ RUN apt-get update --fix-missing && \
     apt-get install -y apt-utils vim curl nano wget unzip maven git tree && \
     apt-get install -y libsm6 make build-essential && \
     apt-get install -y autoconf gawk bison libcurl4-openssl-dev python3-protobuf libprotobuf-c-dev protobuf-c-compiler && \
-    apt-get install -y netcat net-tools
+    apt-get install -y netcat net-tools && \
+    apt-get install -y python3-pip
+RUN pip3 install ninja meson && \
+    python3 -m pip install toml==0.10.2 click jinja2
 
 ADD ./java.manifest.template /ppml/trusted-big-data-ml/java.manifest.template
 ADD ./Makefile /ppml/trusted-big-data-ml/Makefile
@@ -154,4 +164,3 @@ RUN chmod a+x /ppml/trusted-big-data-ml/init.sh && \
     chmod a+x /ppml/trusted-big-data-ml/start-spark-standalone-driver-sgx.sh && \
     chmod a+x /ppml/trusted-big-data-ml/distributed-check-status.sh && \
     chmod a+x /ppml/trusted-big-data-ml/check-status.sh
-   
