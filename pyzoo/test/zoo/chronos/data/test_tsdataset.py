@@ -589,6 +589,6 @@ class TestTSDataset(ZooTestCase):
                                        extra_feature_col="extra feature",
                                        id_col="id",)
         with pytest.raises(AssertionError):
-            tsdata.resample('2D').roll(lookback=5, horizon=2, id_sensitive=True)
+            tsdata.roll(lookback=5, horizon=2, id_sensitive=True)
         tsdata._check_basic_invariants()
 >>>>>>> autopep8

@@ -65,8 +65,11 @@ class TSDataset:
 
         self._id_list = list(np.unique(self.df[self.id_col]))
         self._is_pd_datetime = pd.api.types.is_datetime64_any_dtype(self.df[self.dt_col].dtypes)
-        self._is_aligned = len(set([len(self.df[self.df[self.id_col] == val])
-                                    for val in self._id_list])) == 1
+        self._is_aligned = len(set(self.df[self.id_col].value_counts().
+                                   reset_index(drop=True))) == 1 and \
+            set([self.df[self.df[self.id_col] == self._id_list[0]].reset_index(drop=True)
+                 [self.dt_col].equals(self.df.groupby(self.id_col).get_group(val).
+                 reset_index(drop=True)[self.dt_col])for val in self._id_list]) == {True}
 
     @staticmethod
     def from_pandas(df,
@@ -204,6 +207,9 @@ class TSDataset:
         :return: the tsdataset instance.
         '''
         df_list = []
+        from warnings import warn
+        if start_time is None or end_time is None or not self._is_aligned:
+            warn("The resample method will not align the time of tsdata", UserWarning)
         assert self._is_pd_datetime,\
             "The time series data does not have a Pandas datetime format\
             (you can use pandas.to_datetime to convert a string into a datetime format)."
