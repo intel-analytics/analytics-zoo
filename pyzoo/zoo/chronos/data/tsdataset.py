@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+from numpy.core.fromnumeric import size
 import pandas as pd
 import numpy as np
 import functools
@@ -318,6 +319,8 @@ class TSDataset:
         else:
             default_fc_parameters = settings
 
+        assert window_size < self.df.shape[0] + 1, "window_size small sample size"
+        # BUG keyerror -->non_pd_datetime [ln325] not_aligned
         df_rolled = roll_time_series(self.df,
                                      column_id=self.id_col,
                                      column_sort=self.dt_col,
@@ -434,6 +437,10 @@ class TSDataset:
                                                                feature_col=feature_col,
                                                                target_col=target_col))
 
+        size_list = [rolling_result[i][0] for i in range(num_id)]
+        assert len(size_list[0]) == len(size_list[-1]), "datetime not aligned."
+        # 1. BUG gen_global_feature: -->non_aligned (id_sensitive=True)
+        # 2. BUG gen_resmape
         # concat the result on required axis
         concat_axis = 2 if id_sensitive else 0
         self.numpy_x = np.concatenate([rolling_result[i][0]
