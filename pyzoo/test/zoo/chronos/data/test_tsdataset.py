@@ -575,7 +575,6 @@ class TestTSDataset(ZooTestCase):
 
     def test_not_aligned(self):
         df = get_not_aligned_df()
-<<<<<<< HEAD
         tsdata = TSDataset.from_pandas(df,target_col="value",
                                         dt_col="datetime",
                                         extra_feature_col="extra feature",
@@ -583,12 +582,3 @@ class TestTSDataset(ZooTestCase):
         with pytest.raises(AssertionError):
             tsdata.roll(lookback=5,horizon=2,id_sensitive=True)            
         tsdata._check_basic_invariants()
-=======
-        tsdata = TSDataset.from_pandas(df, target_col="value",
-                                       dt_col="datetime",
-                                       extra_feature_col="extra feature",
-                                       id_col="id",)
-        with pytest.raises(AssertionError):
-            tsdata.roll(lookback=5, horizon=2, id_sensitive=True)
-        tsdata._check_basic_invariants()
->>>>>>> autopep8

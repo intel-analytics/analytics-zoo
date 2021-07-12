@@ -245,7 +245,6 @@ class TSDataset:
 
         :return: the tsdataset instance.
         '''
-
         assert self._is_pd_datetime, "The time series data does not have a Pandas datetime format\
                     (you can use pandas.to_datetime to convert a string into a datetime format)"
         df_list = [generate_dt_features(input_df=self.df[self.df[self.id_col] == id_name],
