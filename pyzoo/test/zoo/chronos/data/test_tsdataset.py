@@ -534,17 +534,18 @@ class TestTSDataset(ZooTestCase):
 
     def test_check_scale_sequence(self):
         df = get_multi_id_ts_df()
-        #with split is True.
-        td_train,td_valid,td_test = TSDataset.from_pandas(df, dt_col="datetime", 
+        # with split is True.
+        td_train, td_valid, td_test = TSDataset.from_pandas(df, dt_col="datetime",
                                                             target_col="value",
-                                                            extra_feature_col=["extra feature"], 
+                                                            extra_feature_col=[
+                                                                "extra feature"],
                                                             id_col="id",
                                                             with_split=True,
                                                             val_ratio=0.1,
                                                             test_ratio=0.1)
         from sklearn.preprocessing import StandardScaler
-        stand=StandardScaler()
+        stand = StandardScaler()
         with pytest.raises(AssertionError):
-            for tsdata in [td_train,td_valid,td_test]:
-                tsdata.scale(stand,fit=False)
+            for tsdata in [td_train, td_valid, td_test]:
+                tsdata.scale(stand, fit=False)
             tsdata._check_basic_invariants()
