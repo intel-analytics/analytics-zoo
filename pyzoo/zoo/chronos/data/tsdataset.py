@@ -65,11 +65,10 @@ class TSDataset:
 
         self._id_list = list(np.unique(self.df[self.id_col]))
         self._is_pd_datetime = pd.api.types.is_datetime64_any_dtype(self.df[self.dt_col].dtypes)
-        self._is_aligned = len(set(self.df[self.id_col].value_counts().
-                                   reset_index(drop=True))) == 1 and \
-            set([self.df[self.df[self.id_col] == self._id_list[0]].reset_index(drop=True)
-                 [self.dt_col].equals(self.df.groupby(self.id_col).get_group(val).
-                 reset_index(drop=True)[self.dt_col])for val in self._id_list]) == {True}
+        self._is_aligned = len(set(self.df[self.id_col].value_counts().tolist())) == 1 and \
+                set([self.df.groupby(self.id_col).get_group(self._id_list[0])[self.dt_col]
+                 .reset_index(drop=True).equals(self.df.groupby(self.id_col).get_group(val)
+                 .reset_index(drop=True)[self.dt_col])for val in self._id_list]) == {True}
 
     @staticmethod
     def from_pandas(df,
