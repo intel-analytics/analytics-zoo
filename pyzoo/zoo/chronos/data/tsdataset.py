@@ -521,8 +521,12 @@ class TSDataset:
             self.df[self.target_col + feature_col] = \
                 scaler.fit_transform(self.df[self.target_col + feature_col])
         else:
-            assert [v for v in vars(scaler) if v.endswith("_") and not v.startswith("__")],\
-                "When calling scale for the first time, you need to set fit=True."
+            from sklearn.utils.validation import check_is_fitted
+            try:
+                assert not check_is_fitted(scaler)
+            except Exception:
+                raise AssertionError("When calling scale for the first time, \
+                    you need to set fit=True.")
             self.df[self.target_col + feature_col] = \
                 scaler.transform(self.df[self.target_col + feature_col])
         self.scaler = scaler
