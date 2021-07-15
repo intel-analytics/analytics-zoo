@@ -65,11 +65,8 @@ class TSDataset:
 
         self._id_list = list(np.unique(self.df[self.id_col]))
         self._is_pd_datetime = pd.api.types.is_datetime64_any_dtype(self.df[self.dt_col].dtypes)
-        self._is_aligned = len(set(self.df[self.id_col].value_counts().tolist())) == 1 and \
-                set([self.df.groupby(self.id_col).get_group(self._id_list[0])[self.dt_col]
-                 .reset_index(drop=True).equals(self.df.groupby(self.id_col).get_group(val)
-                 .reset_index(drop=True)[self.dt_col])for val in self._id_list]) == {True}
-
+        self._is_aligned = hash(str(self.df[self.df[self.id_col]==self._id_list[0]][self.dt_col]\
+            .tolist()*len(self._id_list))) == hash(str(self.df[self.dt_col].to_list()))
     @staticmethod
     def from_pandas(df,
                     dt_col,
@@ -208,7 +205,8 @@ class TSDataset:
         df_list = []
         from warnings import warn
         if start_time is None or end_time is None or not self._is_aligned:
-            warn("The resample method will not align the time of tsdata", UserWarning)
+            warn("The resample method will not align the time of tsdata for each id,\
+             please set the start_time and end_time to align them.", UserWarning)
         assert self._is_pd_datetime,\
             "The time series data does not have a Pandas datetime format\
             (you can use pandas.to_datetime to convert a string into a datetime format)."
@@ -245,7 +243,7 @@ class TSDataset:
         :return: the tsdataset instance.
         '''
         assert self._is_pd_datetime, "The time series data does not have a Pandas datetime format\
-                    (you can use pandas.to_datetime to convert a string into a datetime format)"
+                    (you can use pandas.to_datetime to convert a string into a datetime format.)"
         df_list = [generate_dt_features(input_df=self.df[self.df[self.id_col] == id_name],
                                         dt_col=self.dt_col)
                    for id_name in self._id_list]
