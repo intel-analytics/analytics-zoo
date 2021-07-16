@@ -20,8 +20,6 @@ import java.util
 import java.util.{HashMap, UUID}
 
 import akka.actor.{Actor, ActorRef}
-import com.intel.analytics.bigdl.nn.abstractnn.Activity
-import com.intel.analytics.zoo.serving.serialization.{ArrowDeserializer, StreamSerializer}
 import com.intel.analytics.zoo.serving.pipeline.RedisUtils
 import com.intel.analytics.zoo.serving.utils.Conventions
 import org.slf4j.LoggerFactory
@@ -48,8 +46,7 @@ class RedisIOActor(redisOutputQueue: String = Conventions.RESULT_PREFIX +
         logger.info(s"${System.currentTimeMillis()} Input enqueue ${message.id} at time ")
         enqueue(redisInputQueue, message)
 
-        requestMap += (Conventions.RESULT_PREFIX +
-          Conventions.SERVING_STREAM_DEFAULT_NAME + ":" + message.id -> sender())
+        requestMap += (redisOutputQueue + message.id -> sender())
       }
     case message: DequeueMessage =>
       if (!requestMap.isEmpty) {
@@ -62,7 +59,6 @@ class RedisIOActor(redisOutputQueue: String = Conventions.RESULT_PREFIX +
             requestMap -= result._1
             logger.info(s"${System.currentTimeMillis()} Send ${result._1} back at time ")
           }
-
         })
       }
 

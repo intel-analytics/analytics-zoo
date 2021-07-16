@@ -87,7 +87,6 @@ object FrontEndApp extends Supportive with EncryptSupportive {
         }
       }
       logger.info("Servable Manager Load Success!")
-
       var redisPutter : ActorRef = null
       val route = timing("initialize http route")() {
         path("") {
@@ -212,15 +211,38 @@ object FrontEndApp extends Supportive with EncryptSupportive {
                     }
                     val modelInferenceTimer = modelInferenceTimersMap(modelName)(modelVersion)
                     servable match {
-                      case _: ClusterServingServable =>
+                      case clusterServingServable: ClusterServingServable =>
                         val result = timing("cluster serving inference")(predictRequestTimer) {
-                          val instances = timing("json deserialization")() {
-                            JsonUtil.fromJson(classOf[Instances], content)
+                          val rejected = arguments.tokenBucketEnabled match {
+                            case true =>
+                              if (!clusterServingServable.rateLimiter.tryAcquire(
+                                arguments.tokenAcquireTimeout, TimeUnit.MILLISECONDS)) {
+                                true
+                              } else {
+                                false
+                              }
+                            case false => false
                           }
-                          val outputs = timing("model inference")(modelInferenceTimer) {
-                            servable.predict(instances)
+                          if (rejected) {
+                            val error = ServingError("limited")
+                            complete(500, error.toString)
+                          }
+                          val outputs = servable.getMetaData.
+                            asInstanceOf[ClusterServingMetaData].inputCompileType match {
+                            case "direct" =>
+                              timing ("model inference direct") (modelInferenceTimer) {
+                                servable.predict(content)
+                              }
+                            case "instance" =>
+                              val instances = timing ("json deserialization") () {
+                              JsonUtil.fromJson (classOf[Instances], content)
+                              }
+                              timing ("model inference") (modelInferenceTimer) {
+                                servable.predict(instances)
+                              }
                           }
                           Predictions(outputs)
+
                         }
                         timing("cluster serving response complete")() {
                           complete(200, result.toString)
@@ -229,7 +251,7 @@ object FrontEndApp extends Supportive with EncryptSupportive {
                         val result = timing("inference model inference")(predictRequestTimer) {
                           val outputs = servable.getMetaData.
                             asInstanceOf[InferenceModelMetaData].inputCompileType match {
-                            case "direct" => timing("model inference")(modelInferenceTimer) {
+                            case "direct" => timing("model inference direct")(modelInferenceTimer) {
                               servable.predict(content)
                             }
                             case "instance" =>
