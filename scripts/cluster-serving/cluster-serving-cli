@@ -11,7 +11,7 @@ def get_flink_rest():
         raise Exception("You must in Cluster Serving working directory, "
                         "and have config.yaml to execute the command")
     with open("config.yaml") as f:
-        conf_dict = yaml.load(f)
+        conf_dict = yaml.safe_load(f)
         if not conf_dict['flink']['rest']:
             flink_rest = "http://localhost:8081"
         else:
@@ -24,7 +24,7 @@ def list_jobs():
     cnt = 0
     if os.path.exists(jobs_yaml):
         with open(jobs_yaml) as f:
-            running_dict = yaml.load(f)
+            running_dict = yaml.safe_load(f)
             for value in running_dict.values():
                 cnt += 1
                 print("Job name:", value['name'],
@@ -35,7 +35,7 @@ def list_jobs():
 def stop_job(job_name=None):
     if os.path.exists(jobs_yaml):
         with open(jobs_yaml) as f:
-            running_dict = yaml.load(f)
+            running_dict = yaml.safe_load(f)
             if not job_name:
                 os.remove(jobs_yaml)
                 for value in running_dict.values():
