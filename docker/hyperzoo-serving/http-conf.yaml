@@ -1,0 +1,23 @@
+---
+modelMetaDataList:
+- !<ClusterServingMetaData>
+  modelName: "ResNet-50"
+  modelVersion: "1.0"
+  redisHost: "localhost"
+  redisPort: "6379"
+  redisInputQueue: "stream-resnet50-1"
+  redisOutputQueue: "cluster-serving_stream-resnet50-1:"
+- !<ClusterServingMetaData>
+  modelName: "yolov3"
+  modelVersion: "1.0"
+  redisHost: "localhost"
+  redisPort: "6379"
+  redisInputQueue: "stream-yolov3-1"
+  redisOutputQueue: "cluster-serving_stream-yolov3-1:"
+- !<ClusterServingMetaData>
+  modelName: "DIEN"
+  modelVersion: "1.0"
+  redisHost: "localhost"
+  redisPort: "6379"
+  redisInputQueue: "stream-dien-1"
+  redisOutputQueue: "cluster-serving_stream-dien-1:"
