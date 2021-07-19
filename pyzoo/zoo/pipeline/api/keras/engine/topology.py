@@ -203,8 +203,12 @@ class KerasNet(ZooKerasLayer):
         Train a model for a fixed number of epochs on a DataSet.
 
         # Arguments
-        x: Input data. A Numpy array or RDD of Sample, ImageSet or TextSet.
-        y: Labels. A Numpy array. Default is None if x is already Sample RDD or ImageSet or TextSet.
+        x: Input data. We support multiple data types. x can be a Numpy array or RDD of
+        zoo.common.utils.Sample or RDD of Numpy array or ImageSet or TextSet or FeatureSet.
+        y: Labels. If x is a Numpy array, y must be a Numpy array.
+        If x is RDD of Sample or ImageSet or TextSet or FeatureSet which already contains labels,
+        y should be None, i.e. the default value.
+        If x is RDD of Numpy array, y should also be RDD of Numpy array.
         batch_size: Number of samples per gradient update. Default is 32.
         nb_epoch: Number of epochs to train.
         validation_data: Tuple (x_val, y_val) where x_val and y_val are both Numpy arrays.
@@ -213,9 +217,9 @@ class KerasNet(ZooKerasLayer):
         distributed: Boolean. Whether to train the model in distributed mode or local mode.
                      Default is True. In local mode, x and y must both be Numpy arrays.
         """
-
         if distributed:
-            if isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
+            if isinstance(x, np.ndarray):
+                assert isinstance(y, np.ndarray), "x and y must be both Numpy arrays"
                 if validation_data:
                     validation_data = to_sample_rdd(*validation_data)
                 elif validation_split != 0:
@@ -226,8 +230,30 @@ class KerasNet(ZooKerasLayer):
                     x, y = x[:split_index], y[:split_index]
                     validation_data = to_sample_rdd(*validation_data)
                 training_data = to_sample_rdd(x, y)
-            elif (isinstance(x, RDD) or isinstance(x, ImageSet) or isinstance(x, TextSet)) \
-                    or isinstance(x, FeatureSet) and not y:
+            elif isinstance(x, RDD):
+                if not y:  # x is RDD of Sample, y should be None
+                    training_data = x
+                else:  # x and y are both RDD of Numpy arrays
+                    assert isinstance(y, RDD), "x and y must be both RDD of Numpy array"
+                    from zoo.common.utils import Sample
+                    training_data = x.zip(y).map(lambda item: Sample.from_ndarray(item[0], item[1]))
+            elif isinstance(x, ImageSet):
+                assert not y, "y should be None if x is an ImageSet"
+                if validation_data:
+                    assert isinstance(validation_data, ImageSet), \
+                        "train and validation data must be both ImageSet"
+                training_data = x
+            elif isinstance(x, TextSet):
+                assert not y, "y should be None if x is a TextSet"
+                if validation_data:
+                    assert isinstance(validation_data, TextSet), \
+                        "train and validation data must be both TextSet"
+                training_data = x
+            elif isinstance(x, FeatureSet):
+                assert not y, "y should be None if x is a FeatureSet"
+                if validation_data:
+                    assert isinstance(validation_data, FeatureSet), \
+                        "train and validation data must be both FeatureSet"
                 training_data = x
             else:
                 raise TypeError("Unsupported training data type: %s" % type(x))
@@ -257,14 +283,26 @@ class KerasNet(ZooKerasLayer):
         Evaluate a model on a given dataset in distributed mode.
 
         # Arguments
-        x: Evaluation data. A Numpy array or RDD of Sample or ImageSet or TextSet.
-        y: Labels. A Numpy array.
-           Default is None if x is already Sample RDD or ImageSet or TextSet.
+        x: Evaluation data. A Numpy array or RDD of zoo.common.utils.Sample or
+        RDD of Numpy Array or ImageSet or TextSet.
+        y: Labels. If x is a Numpy array, y must be a Numpy array.
+        If x is RDD of Sample or ImageSet or TextSet which already contains labels,
+        y should be None, i.e. the default value.
+        If x is RDD of Numpy array, y should also be RDD of Numpy array.
         batch_size: Number of samples per batch. Default is 32.
         """
-        if isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
+        if isinstance(x, np.ndarray):
+            assert isinstance(y, np.ndarray), "x and y must be both Numpy arrays"
             data = to_sample_rdd(x, y)
-        elif (isinstance(x, RDD) or isinstance(x, ImageSet) or isinstance(x, TextSet)) and not y:
+        elif isinstance(x, RDD):
+            if not y:  # x is RDD of Sample, y should be None
+                data = x
+            else:  # x and y are both RDD of Numpy arrays
+                assert isinstance(y, RDD), "x and y must be both RDD of Numpy array"
+                from zoo.common.utils import Sample
+                data = x.zip(y).map(lambda item: Sample.from_ndarray(item[0], item[1]))
+        elif isinstance(x, ImageSet) or isinstance(x, TextSet):
+            assert not y, "y should be None if x is an ImageSet or TextSet"
             data = x
         else:
             raise TypeError("Unsupported evaluation data type: %s" % type(x))
