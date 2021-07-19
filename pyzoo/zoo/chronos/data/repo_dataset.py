@@ -13,16 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
-import re
-from numpy.lib.arraysetops import isin
-import requests
-import pandas as pd
-
-from zoo.chronos.data.utils.publicdataset import PublicDataset,NETWORK_TRAFFIC_DATA
+from zoo.chronos.data.utils.publicdataset import PublicDataset
 
 
-def get_public_dataset(name,path='~/.chronos/dataset',redownload=False):
+def get_public_dataset(name, path='~/.chronos/dataset', redownload=False):
     """
     Get public dataset.
 
@@ -30,28 +24,17 @@ def get_public_dataset(name,path='~/.chronos/dataset',redownload=False):
     >>> tsdata_network_traffic = get_public_dataset
 
     :param name: str, public dataset name, e.g. "network traffic".
-    :param path: str, download path, the value defatults to "~/.chronos/dataset/network_traffic".
+    :param path: str, download path, the value defatults to "~/.chronos/dataset/".
     :param redownload: bool, if redownload the raw dataset file(s).
     """
-    # os 
-    assert not isinstance(name,'str'),"input name not a str."
-    assert not isinstance(path,'str'),'input must be a path'
-    _abspath = os.path.join(os.path.expanduser(path),name)
+    assert not isinstance(name, str) or not isinstance(path, str),\
+        "The name and path must be of type str."
 
-    # redownload
-    if redownload:
-        exists_file = os.listdir()
-        _ = [os.remove(os.path.join(path,x)) for x in exists_file if x in NETWORK_TRAFFIC_DATA]
-    
-    # mkdir
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-    public_dataset = PublicDataset()
+    public_dataset = PublicDataset(
+        name=name, path=path, redownload=redownload).get_public_data()
     if name == 'network_traffic':
-        public_dataset.file_path_download().preprocess_network_traffic().get_tsdata()
+        public_dataset.preprocess_network_traffic()
     elif name == '':
         pass
     else:
         pass
-
