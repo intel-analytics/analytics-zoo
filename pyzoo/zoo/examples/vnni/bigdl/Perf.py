@@ -34,10 +34,10 @@ def perf(model_path, batch_size, iteration):
         start = time.time_ns()
         model.forward(batch_input)
         time_used = time.time_ns() - start
-        throughput = round(batch_size / (time_used / 10 ** 9), 2)
+        throughput = round(batch_size / (time_used / 10 ** 6), 2)
         print("Iteration:" + str(i) +
               ", batch " + str(batch_size) +
-              ", takes " + str(time_used) + " ns" +
+              ", takes " + str(time_used) + " ms" +
               ", throughput is " + str(throughput) + " imgs/sec")
 
     # mkldnn model would forward a fixed batch size.

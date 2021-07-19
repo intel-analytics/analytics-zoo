@@ -1,5 +1,5 @@
 # Summary
-We hereby illustrate the support of [VNNI](https://en.wikichip.org/wiki/x86/avx512vnni) using BigDL [MKL-DNN](https://github.com/intel/mkl-dnn) as backend in Analytics Zoo, which aims at accelerating inference by utilizing low numerical precision (Int8) computing. 
+We hereby illustrate the support of [VNNI](https://en.wikichip.org/wiki/x86/avx512vnni) using BigDL [MKL-DNN](https://github.com/intel/mkl-dnn) as backend in Analytics Zoo, which aims at accelerating inference by utilizing low numerical precision (Int8) computing.
 
 Int8 quantized models can generally give you better performance on Intel Xeon scalable processors.
 
@@ -79,13 +79,13 @@ python Perf.py --model ${model_path}
 
 __Options:__
 - `--model`: The path to the downloaded int8 model.
-- `--batchSize`: The batch size of input data. Default is 32.
+- `--batch_size`: The batch size of input data. Default is 32.
 - `--iteration`: The number of iterations to run the performance test. Default is 1000. The result should be the average of each iteration time cost.
 
 __Sample console log output__:
 ```
 ......
-Iteration:72, batch 32, takes XXX ns, throughput is XXX imgs/sec
+Iteration:72, batch 32, takes XXX ms, throughput is XXX imgs/sec
 ......
 Iteration:20, latency for a single image is XXX ms
 ......

@@ -26,23 +26,23 @@ from optparse import OptionParser
 def predict(model_path, image_path, top_n):
     sc = init_nncontext("Image classification inference example using int8 quantized model")
     images = ImageSet.read(image_path, sc, image_codec=1)
-    model = ImageClassifier.load_model(model_path)
-    output = model.predict_image_set(images)
-    label_map = model.get_config().label_map()
+    part_model = ImageClassifier.load_model(model_path)
+    output = part_model.predict_image_set(images)
+    label_map = part_model.get_config().label_map()
 
     # list of images composing uri and results in tuple format
     predicts = output.get_predict().collect()
 
-    sequential = Sequential()
-    sequential.add(Activation("softmax", input_shape=predicts[0][1][0].shape))
-    for pre in predicts:
-        (uri, probs) = pre
-        out = sequential.forward(probs[0])
-        sortedProbs = [(prob, index) for index, prob in enumerate(out)]
-        sortedProbs.sort()
+    model = Sequential().add(part_model)\
+        .add(Activation("softmax", input_shape=predicts[0][1][0].shape))
+    for result in predicts:
+        (uri, probs) = result
+        out = model.forward(probs[0])
+        sorted_probs = [(prob, index) for index, prob in enumerate(out)]
+        sorted_probs.sort()
         print("Image : %s, top %d prediction result" % (uri, top_n))
         for i in range(top_n):
-            print("\t%s, %f" % (label_map[sortedProbs[999 - i][1]], sortedProbs[999 - i][0]))
+            print("\t%s, %f" % (label_map[sorted_probs[999 - i][1]], sorted_probs[999 - i][0]))
 
 
 if __name__ == "__main__":
