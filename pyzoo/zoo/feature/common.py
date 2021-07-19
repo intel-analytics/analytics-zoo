@@ -385,6 +385,10 @@ class FeatureSet(DataSet):
                 warnings.warn(warning_msg)
 
             bys = CloudPickleSerializer.dumps(CloudPickleSerializer, dataloader)
+            assert len(bys) < 268435456, "Require the size of serialized dataloader < 256MB, " + \
+                                         "but got " + str(len(bys) / 1024 / 1024) + "MB, " + \
+                                         "please use a callable function who return a pytorch" + \
+                                         " dataloader, instead of a dataloader instance."
             jvalue = callZooFunc(bigdl_type, "createFeatureSetFromPyTorch", bys,
                                  False, features, labels)
             return cls(jvalue=jvalue)
