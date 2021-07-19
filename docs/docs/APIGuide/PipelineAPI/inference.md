@@ -2,7 +2,7 @@ Inference Model is a package in Analytics Zoo aiming to provide high-level APIs 
 
 **Highlights**
 
-1. Easy-to-use APIs for loading and prediction with deep learning models of Analytics Zoo, Caffe, Tensorflow and OpenVINO Intermediate Representation(IR).
+1. Easy-to-use APIs for loading and prediction with deep learning models of Analytics Zoo, Caffe, Tensorflow, PyTorch and OpenVINO Intermediate Representation(IR).
 2. Support transformation of various input data type, thus supporting future prediction tasks.
 3. Transparently support the OpenVINO toolkit, which deliver a significant boost for inference speed ([up to 19.9x](https://software.intel.com/en-us/blogs/2018/05/15/accelerate-computer-vision-from-edge-to-cloud-with-openvino-toolkit)).
 
@@ -34,6 +34,7 @@ Python requirements:
 2. [Caffe Models](https://github.com/BVLC/caffe/wiki/Model-Zoo)
 3. [TensorFlow Models](https://github.com/tensorflow/models)
 4. [OpenVINO models](https://software.intel.com/en-us/openvino-toolkit/documentation/pretrained-models)
+5. [PyTorch Models](https://pytorch.org/docs/stable/hub.html)
 
 ## **Load pre-trained model**
 ### **Load pre-trained Analytics Zoo model**
@@ -133,7 +134,6 @@ model.load_tensorflow(modelPath, modelType)
 ```
 
 ### **Load OpenVINO model**
-
 Load OpenVINO model with `loadOpenVINO` methods (`loadOpenVINO` for Java, `doLoadOpenVINO` for Scala and `load_openvino` Python).
 
 **Java**
@@ -161,6 +161,73 @@ model.load_openvino(modelPath, weightPath)
 
 * `modelPath`: String. Path of pre-trained OpenVINO model.
 * `weightPath`: String. Path of pre-trained OpenVINO model weight.
+
+### **Load pre-trained PyTorch model**
+Load Pytorch model with corresponding `loadPyTorch` methods (`loadPyTorch` for Java, `load_pytorch` for Python and `doLoadPyTorch` for Scala).
+
+Before loading PyTorch model, user should save the model using zoo_pickle_module in python, like:
+
+```python
+from zoo.pipeline.api.torch import zoo_pickle_module
+model = models.resnet18(pretrained = True)
+torch.save(model, "$modelPath", pickle_module=zoo_pickle_module)
+```
+and export `PYTHONHOME`:
+```bash
+export PYTHONHOME=[conda install path]/envs/zoo # use command "conda env list" to find the path of PYTHONEHOME.
+```
+
+Then load PyTorch model:
+
+**Java**
+
+***load PyTorch model in Java with model path***
+
+```java
+public class ExtendedInferenceModel extends AbstractInferenceModel {
+}
+ExtendedInferenceModel model = new ExtendedInferenceModel();
+model.loadPyTorch(modelPath);
+```
+
+***load PyTorch model in Java with model bytes***
+
+```java
+public class ExtendedInferenceModel extends AbstractInferenceModel {
+}
+ExtendedInferenceModel model = new ExtendedInferenceModel();
+model.loadPyTorch(modelBytes);
+```
+
+* `modelPath`: String. Path of pre-trained PyTorch model.
+* `modelBytes`: Array[Byte]. Bytes of the torch script.
+
+**Scala**
+
+***load PyTorch model in scala with model path***
+
+```scala
+val model = new InferenceModel()
+model.doLoadPyTorch(modelPath)
+```
+
+***load PyTorch model in scala with model bytes***
+
+```scala
+val model = new InferenceModel()
+model.doLoadPyTorch(modelBytes)
+```
+
+* `modelPath`: String. Path of pre-trained PyTorch model.
+* `modelBytes`: Array[Byte]. Bytes of the torch script.
+
+
+**Python**
+
+```python
+model = InferenceModel()
+model.load_torch(modelPath)
+```
 
 ## **Predict with loaded model**
 After loading pre-trained models with load methods, we can make prediction with unified `predict` method.
