@@ -12,10 +12,12 @@
       <outputDirectory>/bin</outputDirectory>
       <directory>../${project.basedir}/scripts</directory>
     </fileSet>
+
     <fileSet>
       <outputDirectory>/apps</outputDirectory>
       <directory>../${project.basedir}/apps</directory>
     </fileSet>
+
     <fileSet>
       <outputDirectory>/lib</outputDirectory>
       <directory>../${project.basedir}/zoo/target</directory>

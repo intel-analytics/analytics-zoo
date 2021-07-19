@@ -622,6 +622,13 @@
             <artifactId>embedded-redis</artifactId>
             <version>0.6</version>
         </dependency>
+
+        <dependency>
+            <groupId>ml.combust.mleap</groupId>
+            <artifactId>mleap-spark_2.11</artifactId>
+            <version>0.11.0</version>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -1105,7 +1112,7 @@
                 <version>0.8.0</version>
                 <configuration>
                     <verbose>false</verbose>
-                    <failOnViolation>true</failOnViolation>
+                    <failOnViolation>false</failOnViolation>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>
                     <failOnWarning>false</failOnWarning>
                     <sourceDirectory>${basedir}/src/main/scala</sourceDirectory>

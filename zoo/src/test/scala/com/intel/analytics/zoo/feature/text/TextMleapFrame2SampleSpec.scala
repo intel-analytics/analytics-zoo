@@ -18,7 +18,7 @@ package com.intel.analytics.zoo.feature.text
 
 import org.scalatest.{FlatSpec, Matchers}
 
-class TextFeatureToSampleSpec extends FlatSpec with Matchers {
+class TextMleapFrame2SampleSpec extends FlatSpec with Matchers {
 
   private def genFeature(): TextFeature = {
     val text = "hello my friend, please annotate my text"
