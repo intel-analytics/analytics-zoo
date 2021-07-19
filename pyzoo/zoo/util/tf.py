@@ -21,7 +21,7 @@ import copy
 import tempfile
 import re
 import shutil
-from zoo.common.utils import put_local_file_to_remote, get_remote_file_to_local, get_file_list,\
+from zoo.common.utils import put_local_file_to_remote, get_remote_file_to_local, get_file_list, \
     is_local_path
 
 
@@ -46,6 +46,145 @@ def _to_operation_name(name):
 def _to_floats(vs):
     return [float(v) for v in vs]
 
+
+def optimize_graph(sess, inputs, outputs):
+    output_node_names = list({t.op.name for t in outputs})
+
+    graph_def = sess.graph_def
+
+    # clear device specifications
+    for node in graph_def.node:
+        node.device = ""
+
+    non_placeholder_input_names = []
+    type_enums = []
+    for input_tensor in inputs:
+        if input_tensor.op.type not in ["Placeholder", "PlaceholderWithDefault"]:
+            non_placeholder_input_names.append(input_tensor.name)
+            type_enums.append(input_tensor.dtype.as_datatype_enum)
+
+    output_names = [o.name for o in outputs]
+
+    import zoo.util.tf_graph_util as graph_util
+    # freeze graph
+    frozen_graph_def = graph_util.convert_variables_to_constants(
+        sess,
+        graph_def,
+        output_node_names
+    )
+
+    optimized_graph_def, old_names2new = strip_unused(frozen_graph_def,
+                                                      non_placeholder_input_names,
+                                                      output_names,
+                                                      type_enums)
+
+    nodes_of_graph = []
+    for node in optimized_graph_def.node:
+        nodes_of_graph.append(node.name + ":0")
+    nodes_of_graph_set = set(nodes_of_graph)
+
+    new_input_names = []
+    error_input_nodes = []
+    for t in inputs:
+        if t.name in old_names2new:
+            if old_names2new[t.name] not in nodes_of_graph_set:
+                error_input_nodes.append("\"" + (t.name)[0:-2] + "\"")
+            new_input_names.append(old_names2new[t.name])
+        else:
+            if t.name not in nodes_of_graph_set:
+                error_input_nodes.append("\"" + (t.name)[0:-2] + "\"")
+            new_input_names.append(t.name)
+
+    if error_input_nodes:
+        error_nodes_name = " and ".join(error_input_nodes)
+        raise ValueError("Node %s doesn't exist in the graph" % str(error_nodes_name))
+
+    # check all placeholder in the graph are listed in the new_input_names:
+    new_input_nodes = {name.split(":")[0] for name in new_input_names}
+    for node in optimized_graph_def.node:
+        if node.op == "Placeholder" and node.name not in new_input_nodes:
+            raise ValueError(
+                "Node %s is a Placeholder but not listed in inputs, inputs are %s"
+                % (node.name, inputs))
+
+    return optimized_graph_def, new_input_names, output_names
+
+
+def quantize(graph, inputs, outputs, q_data, e_data, conf_dict=None):
+    from ilit import Quantization
+    if conf_dict is None:
+        conf_dict = {
+            "model": {
+                "name": "some_model",
+                "framework": "tensorflow",
+            },
+            "tuning": {
+                "accuracy_criterion": {
+                    "relative": 0.05
+                }
+            },
+            "evaluation": {
+                "accuracy": {
+                    "metric": {
+                        "topk": 1
+                    }
+                }
+            }
+        }
+
+    conf_dict["model"]["inputs"] = inputs
+    conf_dict["model"]["outputs"] = outputs
+
+    import tempfile
+    import os
+    temp_path = tempfile.mktemp(".yaml")
+    temp_path = "./gen_conf.yaml"
+    try:
+        generate_yaml_from_dict(conf_dict, temp_path)
+        quantizer = Quantization(temp_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+    q_dataloader = quantizer.dataloader(dataset=list(zip(q_data[0], q_data[1])))
+    e_dataloader = quantizer.dataloader(dataset=list(zip(e_data[0], e_data[1])))
+    quantized_model = quantizer(graph, q_dataloader=q_dataloader, eval_dataloader=e_dataloader)
+    return quantized_model
+
+
+def generate_yaml_from_dict(conf_dict, path):
+    import yaml
+    with open(path, 'w') as f:
+        yaml.dump(conf_dict, f)
+
+
+def export_quantized_tf(sess, folder, inputs, outputs, q_data, e_data, conf_dict=None):
+    import tensorflow as tf
+    from tensorflow.python.platform import gfile
+    optimized_graph_def, input_names, output_names = optimize_graph(sess, inputs, outputs)
+    with tf.Graph().as_default() as g:
+        tf.import_graph_def(optimized_graph_def, name='')
+        input_nodes = [n.split(":")[0] for n in input_names]
+        output_nodes = [n.split(":")[0] for n in output_names]
+        quantized_model = quantize(g,
+                                   inputs=input_nodes,
+                                   outputs=output_nodes,
+                                   q_data=q_data,
+                                   e_data=e_data,
+                                   conf_dict=conf_dict)
+        quantized_model.as_graph_def()
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
+
+    with gfile.GFile(os.path.join(folder, "frozen_inference_graph.pb"), "wb") as f:
+        f.write(optimized_graph_def.SerializeToString())
+
+    meta = {
+        "input_names": input_names,
+        "output_names": output_names
+    }
+
+    with open(os.path.join(folder, "graph_meta.json"), "w") as f:
+        f.write(json.dumps(meta))
 
 def export_tf(sess, folder, inputs, outputs,
               generate_backward=False, allow_non_differentiable_input=True):

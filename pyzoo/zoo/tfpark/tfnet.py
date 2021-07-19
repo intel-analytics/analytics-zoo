@@ -30,6 +30,7 @@ from zoo.feature.image import ImageSet
 from zoo.tfpark.tf_dataset import TFImageDataset, TFDataset
 import logging
 
+from zoo.util.tf import export_quantized_tf
 from zoo.util.utils import to_sample_rdd
 
 if sys.version >= '3':
@@ -237,7 +238,7 @@ class TFNet(Layer):
     def from_session(sess, inputs, outputs,
                      generate_backward=False,
                      allow_non_differentiable_input=True,
-                     tf_session_config=None):
+                     tf_session_config=None, quantize=False, quantize_args=None):
         """
         Create a TFNet from an a session and the inputs and outpus endpoints
         of the TensorFlow graph.
@@ -264,6 +265,9 @@ class TFNet(Layer):
                                 + "#ProgrammingGuide/TFPark/tensorflow/) for TensorFlow training")
                 export_tf(sess, temp, inputs, outputs,
                           generate_backward, allow_non_differentiable_input)
+                net = TFNet.from_export_folder(temp, tf_session_config)
+            elif quantize:
+                export_quantized_tf(sess, temp, inputs, outputs, **quantize_args)
                 net = TFNet.from_export_folder(temp, tf_session_config)
             else:
                 import tensorflow as tf
