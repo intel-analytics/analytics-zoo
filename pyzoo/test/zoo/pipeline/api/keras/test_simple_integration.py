@@ -125,7 +125,7 @@ class TestSimpleIntegration(ZooTestCase):
 
         transformer = ChainedPreprocessing(
             [ImageBytesToMat(), ImageResize(256, 256), ImageCenterCrop(224, 224),
-             ImageChannelNormalize(0.485, 0.456, 0.406, 0.229, 0.224, 0.225),
+             ImageChannelNormalize.for_3_channels(0.485, 0.456, 0.406, 0.229, 0.224, 0.225),
              ImageMatToTensor(), ImageSetToSample(target_keys=['label'])])
         data = image_set.transform(transformer)
 

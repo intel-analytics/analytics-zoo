@@ -90,7 +90,7 @@ if __name__ == '__main__':
     # run training and evaluation
     featureTransformer = ChainedPreprocessing(
         [RowToImageFeature(), ImageCenterCrop(224, 224),
-         ImageChannelNormalize(123.0, 117.0, 104.0, 255.0, 255.0, 255.0),
+         ImageChannelNormalize.for_3_channels(123.0, 117.0, 104.0, 255.0, 255.0, 255.0),
          ImageMatToTensor(), ImageFeatureToTensor()])
 
     classifier = NNClassifier(zoo_model, zoo_loss, featureTransformer) \

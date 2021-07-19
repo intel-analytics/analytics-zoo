@@ -67,7 +67,7 @@ if __name__ == "__main__":
     # compose a pipeline that includes feature transform, pretrained model and Logistic Regression
     transformer = ChainedPreprocessing(
         [RowToImageFeature(), ImageResize(256, 256), ImageCenterCrop(224, 224),
-         ImageChannelNormalize(123.0, 117.0, 104.0), ImageMatToTensor(), ImageFeatureToTensor()])
+         ImageChannelNormalize.for_3_channels(123.0, 117.0, 104.0), ImageMatToTensor(), ImageFeatureToTensor()])
 
     full_model = Net.load_bigdl(options.model_path)
     # create a new model by remove layers after pool5/drop_7x7_s1

@@ -233,7 +233,7 @@ class TestTFParkEstimator(ZooTestCase):
                                                           ImageRandomCrop(224, 224),
                                                           ImageRandomPreprocessing(
                                                               ImageHFlip(), 0.5),
-                                                          ImageChannelNormalize(
+                                                          ImageChannelNormalize.for_3_channels(
                                                               0.485, 0.456, 0.406,
                                                               0.229, 0.224, 0.225),
                                                           ImageMatToTensor(

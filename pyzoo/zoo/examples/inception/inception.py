@@ -186,7 +186,7 @@ if __name__ == "__main__":
                                               ImageResize(256, 256),
                                               ImageRandomCrop(image_size, image_size),
                                               ImageRandomPreprocessing(ImageHFlip(), 0.5),
-                                              ImageChannelNormalize(123.0, 117.0, 104.0),
+                                              ImageChannelNormalize.for_3_channels(123.0, 117.0, 104.0),
                                               ImageMatToTensor(format="NCHW", to_RGB=False),
                                               ImageSetToSample(input_keys=["imageTensor"],
                                                                target_keys=["label"])
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     val_transformer = ChainedPreprocessing([ImagePixelBytesToMat(),
                                             ImageResize(256, 256),
                                             ImageCenterCrop(image_size, image_size),
-                                            ImageChannelNormalize(123.0, 117.0, 104.0),
+                                            ImageChannelNormalize.for_3_channels(123.0, 117.0, 104.0),
                                             ImageMatToTensor(format="NCHW", to_RGB=False),
                                             ImageSetToSample(input_keys=["imageTensor"],
                                                              target_keys=["label"])

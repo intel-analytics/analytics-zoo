@@ -81,19 +81,36 @@ class ImageBrightness(ImagePreprocessing):
 class ImageChannelNormalize(ImagePreprocessing):
     """
     image channel normalize
-    :param mean_r mean value in R channel
-    :param mean_g mean value in G channel
-    :param meanB_b mean value in B channel
-    :param std_r std value in R channel
-    :param std_g std value in G channel
-    :param std_b std value in B channel
+    :param means: list of means for each channel
+    :param stds: list of stds for each channel
     """
-    def __init__(self, mean_r, mean_g, mean_b, std_r=1.0,
-                 std_g=1.0, std_b=1.0, bigdl_type="float"):
-        super(ImageChannelNormalize, self).__init__(bigdl_type, float(mean_r), float(mean_g),
-                                                    float(mean_b), float(std_r), float(std_g),
-                                                    float(std_b))
+    def __init__(self, means, stds, bigdl_type="float"):
+        super(ImageChannelNormalize, self).__init__(bigdl_type, [float(mean) for mean in means],
+                                                    [float(std) for std in stds])
 
+    @classmethod
+    def for_3_channels(self, mean_r, mean_g, mean_b, std_r=1.0, std_g=1.0, std_b=1.0, bigdl_type="float"):
+        """
+        image channel normalize for 3 channels.
+        :param mean_r mean value in R channel
+        :param mean_g mean value in G channel
+        :param mean_b mean value in B channel
+        :param std_r std value in R channel
+        :param std_g std value in G channel
+        :param std_b std value in B channel
+        """
+        super(ImageChannelNormalize, self).__init__(bigdl_type, [mean_r, mean_g, mean_b],
+                                                    [std_r, std_g, std_b])
+
+    @classmethod
+    def for_1_channel(self, mean, std=1.0, bigdl_type="float"):
+        """
+        image channel normalize in 1 channel.
+        :param mean: mean value in channel
+        :param std: std value for channel
+        """
+        super(ImageChannelNormalize, self).__init__(bigdl_type, [mean], [std])
+        
 
 class PerImageNormalize(ImagePreprocessing):
     """

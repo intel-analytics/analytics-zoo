@@ -237,15 +237,6 @@ class PythonImageFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyt
     ImageFeatureToSample()
   }
 
-  def createImageChannelNormalizer(
-                                  meanR: Double, meanG: Double, meanB: Double,
-                                  stdR: Double = 1, stdG: Double = 1, stdB: Double = 1
-                                ): ImageChannelNormalize = {
-
-    ImageChannelNormalize(meanR.toFloat, meanG.toFloat, meanB.toFloat,
-      stdR.toFloat, stdG.toFloat, stdB.toFloat)
-  }
-
   def createPerImageNormalize(min: Double, max: Double, normType: Int = 32): PerImageNormalize = {
     PerImageNormalize(min, max, normType)
   }
@@ -309,11 +300,10 @@ class PythonImageFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyt
     ImageRandomAspectScale(scales.asScala.toArray, scaleMultipleOf, maxSize)
   }
 
-  def createImageChannelNormalize(meanR: Double, meanG: Double, meanB: Double,
-                             stdR: Double = 1, stdG: Double = 1,
-                                stdB: Double = 1): ImageChannelNormalize = {
-    ImageChannelNormalize(meanR.toFloat, meanG.toFloat, meanB.toFloat,
-      stdR.toFloat, stdG.toFloat, stdB.toFloat)
+  def createImageChannelNormalize(means: JList[Double],
+                                  stds: JList[Double]): ImageChannelNormalize = {
+    new ImageChannelNormalize(means.asScala.toArray.map(_.toFloat),
+      stds.asScala.toArray.map(_.toFloat))
   }
 
   def createImagePixelNormalize(means: JList[Double]): ImagePixelNormalizer = {
