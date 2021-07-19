@@ -18,3 +18,4 @@ from .bert_base import *
 from .bert_classifier import *
 from .bert_squad import *
 from .bert_ner import *
+from .bert_feature_extractor import *
