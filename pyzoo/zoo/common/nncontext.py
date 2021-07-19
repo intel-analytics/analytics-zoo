@@ -270,6 +270,7 @@ class ZooContextMeta(type):
 
     _log_output = False
     _barrier_mode = True
+    _ray_trial = False
 
     @property
     def log_output(cls):
@@ -303,6 +304,15 @@ class ZooContextMeta(type):
     def barrier_mode(cls, value):
         assert isinstance(value, bool), "barrier_mode should either be True or False"
         cls._barrier_mode = value
+
+    @property
+    def ray_trial(cls):
+        return cls._ray_trial
+
+    @ray_trial.setter
+    def ray_trial(cls, value):
+        assert isinstance(value, bool), "ray_trial should either be True or False"
+        cls._ray_trial = value
 
 
 class ZooContext(metaclass=ZooContextMeta):

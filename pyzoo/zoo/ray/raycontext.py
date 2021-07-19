@@ -151,6 +151,7 @@ class RayServiceFuncGenerator(object):
         tag = uuid.uuid4().hex
         self.ray_master_flag = "ray_master_{}".format(tag)
         self.ray_master_lock = "ray_master_start_{}.lock".format(tag)
+        self.raylet_flag = "raylet_{}".format(tag)
         self.raylet_lock = "raylet_start_{}.lock".format(tag)
 
     def gen_stop(self):
@@ -264,6 +265,39 @@ class RayServiceFuncGenerator(object):
                         tag="raylet")
                     kill_redundant_log_monitors(redis_address=redis_address)
             # Cannot remove ray_master_flag at the end of this task since no barrier is guaranteed.
+
+            yield process_info
+        return _start_raylets
+
+    def gen_raylet_start2(self, redis_address):
+        def _start_raylets(iter):
+            from zoo.util.utils import get_node_ip
+            current_ip = get_node_ip()
+            master_ip = redis_address.split(":")[0]
+            do_start = False
+            process_info = None
+            base_path = tempfile.gettempdir()
+            raylet_flag_path = os.path.join(base_path, self.raylet_flag)
+            # Do not start raylets on the master node
+            if current_ip != master_ip:
+                raylet_lock_path = os.path.join(base_path, self.raylet_lock)
+                with filelock.FileLock(raylet_lock_path):
+                    if not os.path.exists(raylet_flag_path):
+                        os.mknod(raylet_flag_path)
+                        do_start = True
+                if do_start:
+                    process_info = self._start_ray_node(
+                        command=RayServiceFuncGenerator._get_raylet_command(
+                            redis_address=redis_address,
+                            ray_exec=self.ray_exec,
+                            password=self.password,
+                            ray_node_cpu_cores=self.ray_node_cpu_cores,
+                            labels=self.labels,
+                            object_store_memory=self.object_store_memory,
+                            extra_params=self.extra_params),
+                        tag="raylet")
+                    kill_redundant_log_monitors(redis_address=redis_address)
+            # Cannot remove raylet_flag at the end of this task since no barrier is guaranteed.
 
             yield process_info
         return _start_raylets
@@ -577,12 +611,24 @@ class RayContext(object):
                 .format(len(master_process_infos))
             master_process_info = master_process_infos[0]
             redis_address = master_process_info.master_addr
-            raylet_process_infos = ray_rdd.mapPartitions(
-                self.ray_service.gen_raylet_start(redis_address)).collect()
-            raylet_process_infos = [process for process in raylet_process_infos if process]
-            assert len(raylet_process_infos) == self.num_ray_nodes - 1, \
-                "There should be {} raylets launched across the cluster, but got {}"\
-                .format(self.num_ray_nodes - 1, len(raylet_process_infos))
+            if ZooContext.ray_trial:
+                raylet_rdd = self.sc.range(0, self.total_cores,
+                                           numSlices=self.total_cores)
+                raylet_process_infos = raylet_rdd.mapPartitions(
+                    self.ray_service.gen_raylet_start2(redis_address)).collect()
+                raylet_process_infos = [process for process in raylet_process_infos if process]
+                # Here we can only start one ray process (ray master or raylet) on a node.
+                assert len(raylet_process_infos) == len(self.cluster_ips) - 1, \
+                    "There should be {} raylets launched across the cluster, but got {}"\
+                    .format(len(self.cluster_ips) - 1, len(raylet_process_infos))
+                self.num_ray_nodes = len(self.cluster_ips)
+            else:
+                raylet_process_infos = ray_rdd.mapPartitions(
+                    self.ray_service.gen_raylet_start(redis_address)).collect()
+                raylet_process_infos = [process for process in raylet_process_infos if process]
+                assert len(raylet_process_infos) == self.num_ray_nodes - 1, \
+                    "There should be {} raylets launched across the cluster, but got {}"\
+                    .format(self.num_ray_nodes - 1, len(raylet_process_infos))
             process_infos = master_process_infos + raylet_process_infos
 
         self.ray_processesMonitor = ProcessMonitor(process_infos, self.sc, ray_rdd, self,

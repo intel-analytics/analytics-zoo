@@ -133,6 +133,14 @@ class OrcaContextMeta(type):
     def barrier_mode(cls, value):
         ZooContext.barrier_mode = value
 
+    @property
+    def ray_trial(cls):
+        return ZooContext.ray_trial
+
+    @ray_trial.setter
+    def ray_trial(cls, value):
+        ZooContext.ray_trial = value
+
 
 class OrcaContext(metaclass=OrcaContextMeta):
     @staticmethod
