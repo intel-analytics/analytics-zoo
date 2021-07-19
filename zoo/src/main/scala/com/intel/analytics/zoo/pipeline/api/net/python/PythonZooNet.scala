@@ -184,4 +184,11 @@ class PythonZooNet[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZoo
     TorchOptim(optim, decayType)
   }
 
+  def callBackToPython(printer: com.intel.analytics.zoo.PythonPrinter): Unit = {
+    for (i <- 0 until 10) {
+        println(s"printing in java iteration ${i}")
+        printer.print(s"printing in python iteration ${i}")
+    }
+  }
+
 }
