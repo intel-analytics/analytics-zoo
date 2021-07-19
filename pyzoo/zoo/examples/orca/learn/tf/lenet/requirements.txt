@@ -1,0 +1,5 @@
+tensorflow==1.15.0
+analytics-zoo
+psutil
+pandas
+scikit-learn

@@ -1,0 +1,13 @@
+name: mxnet
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.7
+  - openjdk=8.0.152
+  - pip=20.1
+  - pip:
+      - analytics-zoo[ray]
+      - mxnet==1.6.0

@@ -1,0 +1,6 @@
+tensorflow==1.15.0
+Pillow
+pandas
+matplotlib
+sklearn
+analytics-zoo

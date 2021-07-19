@@ -1,0 +1,6 @@
+tensorflow==2.3.0
+analytics-zoo[ray]
+horovod==0.19.2
+
+# make sure horovod is re-compiled if environment is re-built
+--no-binary=horovod

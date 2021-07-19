@@ -1,0 +1,11 @@
+name: tf-ncf
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.7.7
+  - pip=20.1
+  - pip:
+      - -r file:requirements.txt

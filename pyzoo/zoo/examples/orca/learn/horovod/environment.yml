@@ -1,0 +1,19 @@
+name: horovod
+
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.7
+  - cpuonly
+  - cmake=3.16.0
+  - cxx-compiler=1.0
+  - openmpi
+  - pytorch=1.6.0
+  - torchvision=0.7.0
+  - pip=20.1
+  - pip:
+      - analytics-zoo[ray]
+      - -r file:requirements.txt
