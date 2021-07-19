@@ -1,0 +1,19 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# https://www.playframework.com/documentation/latest/ScalaRouting
+# ~~~~
+
+# OfficeDepot healthcheck
+GET     /                      controllers.HomeController.index
+
+# OfficeDepot healthcheck
+GET     /health                controllers.HealthCheckController.index
+
+# Run model
+POST    /inference              controllers.ModelController.inference
+
+# Update model
+POST    /update              controllers.UpdateModelController.update
+
+# OfficeDepot model versionCheck
+GET     /version               controllers.VersionCheckController.index

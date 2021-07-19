@@ -1,0 +1,4 @@
+type: recrnn
+modelPath: tmp/rnnModel
+transformerPath: tmp/skuIndexer.zip
+lookupPath: tmp/skuLookUp

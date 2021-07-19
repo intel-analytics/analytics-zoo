@@ -1,0 +1,18 @@
+{
+  "SESSION_ID": "abcd",
+  "userId": 2,
+  "itemId": 2,
+  "label": 2,
+  "STAR_RATING_AVG": 0,
+  "reviews_cnt": 0,
+  "sales_flg": 0,
+  "ATC_SKU": 2,
+  "AGENT_ID": 640994874,
+  "loyalty_ind": 1,
+  "od_card_user_ind": 0,
+  "hvg_flg": 0,
+  "agent_smb_flg": 0,
+  "interval_avg_day_cnt": 159,
+  "customer_type_nm": 1,
+  "loyalty-ct": 83
+}
