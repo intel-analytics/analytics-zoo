@@ -19,6 +19,8 @@ package com.intel.analytics.zoo.tfpark
 import java.io._
 
 import com.intel.analytics.bigdl.Module
+import com.intel.analytics.bigdl.nn.Container
+import com.intel.analytics.bigdl.utils.Util._
 import com.intel.analytics.bigdl.models.utils.{CachedModels, ModelBroadcast, ModelInfo}
 import com.intel.analytics.bigdl.nn.abstractnn.Activity
 import com.intel.analytics.bigdl.nn.mkldnn.{MklDnnLayer, TensorMMap}
@@ -28,7 +30,7 @@ import com.intel.analytics.bigdl.tensor.TensorNumericMath.{NumericWildcard, Tens
 import com.intel.analytics.zoo.common.CheckedObjectInputStream
 import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.EngineRef
 import com.intel.analytics.zoo.pipeline.api.net.SerializationHolder
-import com.intel.analytics.zoo.tfpark.Util._
+import com.intel.analytics.zoo.tfpark.Util.{getAndClearExtraParameters, putExtraParams}
 import org.apache.commons.lang3.SerializationUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
@@ -68,19 +70,17 @@ class TFModelBroadcast[T: ClassTag]()
 
 
     // broadcast Consts
-    //    if (model.isInstanceOf[Container[_, _, T]]) {
-    //      val moduleConsts = getAndClearConsts(model.asInstanceOf[Container[_, _, T]])
-    //      // TODO: broadcast Const, model structure and weight in the same broadcast.
-    //      broadcastConsts = sc.broadcast(moduleConsts)
-    //    }
+    if (model.isInstanceOf[Container[_, _, T]]) {
+      val moduleConsts = getAndClearConsts(model.asInstanceOf[Container[_, _, T]])
+      // TODO: broadcast Const, model structure and weight in the same broadcast.
+      broadcastConsts = sc.broadcast(moduleConsts)
+    }
     // broadcast weight and model
     val weightsBias = getAndClearWeightBias(model.parameters())
     val extraParams = getAndClearExtraParameters(model.getExtraParameter())
     broadcastModel = sc.broadcast(ModelInfo[T](uuid, model))
     broadcastParameters = sc.broadcast(weightsBias)
-
     broadcastExtraParameters = sc.broadcast(extraParams)
-    broadcastParameters = sc.broadcast(weightsBias)
 
     // For quantized model if we don't clone weightsBias, the original model will be released also
     // when we delete all models used in `ModelBroadcast`.
@@ -101,8 +101,7 @@ class TFModelBroadcast[T: ClassTag]()
    * @return model
    */
   override def value(initGradient: Boolean = false, shareWeight: Boolean = true): Module[T] = {
-    EngineRef.setCoreNumber(coreNumber)
-    //    Engine.setNodeAndCore(nodeNumber, coreNumber)
+    EngineRef.setNodeAndCore(nodeNumber, coreNumber)
     CachedModels.deleteAll(this.uuid)
 
     val localModel = broadcastModel.value.model.cloneModule()
@@ -112,16 +111,16 @@ class TFModelBroadcast[T: ClassTag]()
     val parameters = if (shareWeight) {
       broadcastParameters.value
     } else {
-      SerializationUtils.clone(broadcastParameters.value)
+      cloneParameters(broadcastParameters.value)
     }
 
     // share weight
     putWeightBias(parameters, localModel)
 
-    //    // share Consts
-    //    if (localModel.isInstanceOf[Container[_, _, T]] && broadcastConsts.value.nonEmpty) {
-    //      putConsts(localModel.asInstanceOf[Container[_, _, T]], broadcastConsts.value)
-    //    }
+    // share Consts
+    if (localModel.isInstanceOf[Container[_, _, T]] && broadcastConsts.value.nonEmpty) {
+      putConsts(localModel.asInstanceOf[Container[_, _, T]], broadcastConsts.value)
+    }
     if (initGradient) {
       initGradWeightBias(broadcastParameters.value, localModel)
     }

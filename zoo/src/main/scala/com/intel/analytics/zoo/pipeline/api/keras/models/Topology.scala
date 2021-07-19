@@ -37,6 +37,7 @@ import com.intel.analytics.bigdl.serialization.Bigdl.BigDLModule
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.utils._
+import com.intel.analytics.bigdl.utils.Util.setExtraParametersFromModelRDD
 import com.intel.analytics.bigdl.utils.serializer.{DeserializeContext, ModuleData, ModuleSerializer, SerializeContext}
 import com.intel.analytics.bigdl.visualization.{TrainSummary, ValidationSummary}
 import com.intel.analytics.zoo.common.ZooTrigger
@@ -404,7 +405,7 @@ abstract class KerasNet[T](implicit val tag: ClassTag[T], implicit val ev: Tenso
    * which is cached when toDataSet() method is called and rdd is cached
    * TODO: modify this when BigDL fix this issue
    *
-   * @param dataSet Target DataSet to release
+   * @param dataSets Target DataSet to release
    */
   def releaseDataSets(dataSets: Array[DataSet[MiniBatch[T]]]): Unit = {
     for (ds <- dataSets) {
@@ -1812,13 +1813,14 @@ object InternalDistriOptimizer {
           Iterator.single(1)
         }).reduce(_ + _)
 
-        val extraParamLength = models.map(_.localModels.head.getExtraParameter().length).first()
-        val extraState = new Array[Tensor[T]](extraParamLength)
-        (0 until extraParamLength).foreach(i =>
-          extraState(i) = models.map(_.localModels.head.getExtraParameter()(i)).first()
-        )
-//        val extraState = models.map(_.localModels.head.getExtraParameter()).first()
-        trainingModel.setExtraParameter(extraState)
+//        val extraParamLength = models.map(_.localModels.head.getExtraParameter().length).first()
+//        val extraState = new Array[Tensor[T]](extraParamLength)
+//        (0 until extraParamLength).foreach(i =>
+//          extraState(i) = models.map(_.localModels.head.getExtraParameter()(i)).first()
+//        )
+//        trainingModel.setExtraParameter(extraState)
+        setExtraParametersFromModelRDD[T](models.map(_.asInstanceOf[Cache[T]]),
+          trainingModel, maxSize = 500000000)
 
         // make sure gradient is as the same length as weight
         val parameterArray = trainingModel.parameters()

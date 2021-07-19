@@ -108,6 +108,11 @@ object EngineRef {
     field.setAccessible(true)
     field.setInt(Engine, num)
   }
+
+  def setNodeAndCore(nodeNumber: Int, coreNumber: Int): Unit = {
+    KerasUtils.invokeMethod(Engine, "setNodeAndCore",
+      int2Integer(nodeNumber), int2Integer(coreNumber))
+  }
 }
 
 object SGDRef {
