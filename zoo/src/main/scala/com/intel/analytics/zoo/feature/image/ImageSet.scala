@@ -252,32 +252,34 @@ object ImageSet {
                                         sc: SparkContext,
                                         withLabel: Boolean,
                                         oneBasedLabel: Boolean): ImageSet = {
+    val path = new Path(pathStr)
+    val fsSys = path.getFileSystem(sc.hadoopConfiguration)
+    val dirPath = fsSys.getFileStatus(path).getPath.toUri.getRawPath
+    val classFolders = fsSys.listStatus(path).filter(_.isDirectory)
+    val paths = classFolders.map(_.getPath.toUri.toString)
     if (withLabel) {
-      val path = new Path(pathStr)
-
-      val fsSys = path.getFileSystem(sc.hadoopConfiguration)
-      val dirPath = fsSys.getFileStatus(path).getPath.toUri.getRawPath
-      val classFolders = fsSys.listStatus(path).filter(_.isDirectory)
-      val newPathsString = classFolders.map(_.getPath.toUri.toString).mkString(",")
       val labelMap = classFolders.map(_.getPath.getName)
         .sorted.zipWithIndex.map { c =>
         if (oneBasedLabel) c._1 -> (c._2 + 1)
         else c._1 -> c._2
       }.toMap
-      val images = sc.binaryFiles(newPathsString, minPartitions).map { case (p, stream) =>
-        val rawFilePath = new Path(p).toUri.getRawPath
+
+      val images = sc.parallelize(paths, numSlices = minPartitions).map { path =>
+        val imgBytes = FileUtils.readFileToByteArray(Paths.get(pathStr).toFile)
+        val rawFilePath = new Path(path).toUri.getRawPath
         assert(rawFilePath.startsWith(dirPath),
           s"directory path: $dirPath does not match file path $rawFilePath")
         val classStr = rawFilePath
           .substring(dirPath.length + 1).split(File.separator)(0)
         val label = labelMap(classStr)
-        ImageFeature(stream.toArray(), uri = p, label = Tensor[Float](T(label)))
+        ImageFeature(imgBytes, uri = path, label = Tensor[Float](T(label)))
       }
 
       ImageSet.rdd(images, labelMap)
     } else {
-      val images = sc.binaryFiles(pathStr, minPartitions).map { case (p, stream) =>
-        ImageFeature(stream.toArray(), uri = p)
+      val images = sc.parallelize(paths, numSlices = minPartitions).map { path =>
+        val imgBytes = FileUtils.readFileToByteArray(Paths.get(pathStr).toFile)
+        ImageFeature(imgBytes, uri = path)
       }
       ImageSet.rdd(images)
     }
