@@ -74,6 +74,14 @@ class Test_Image_Set():
         image_set = ImageSet.read(self.image_path)
         image_set.get_label()
 
+    def test_get_uri_local(self):
+        image_set = ImageSet.read(self.image_path)
+        image_set.get_uri()
+
+    def test_get_uri_distributed(self):
+        image_set = ImageSet.read(self.image_path, self.sc)
+        image_set.get_uri().collect()
+
     def test_is_local(self):
         image_set = ImageSet.read(self.image_path)
         assert image_set.is_local() is True

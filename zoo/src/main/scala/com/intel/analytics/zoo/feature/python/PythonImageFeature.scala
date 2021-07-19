@@ -122,6 +122,12 @@ class PythonImageFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyt
     imageSet.array.map(x => imageSetToPredict(x, key)).toList.asJava
   }
 
+  def localImageSetToUri(imageSet: LocalImageSet): JList[String] = {
+    imageSet.array.map { imf =>
+      imf.uri()
+    }.toList.asJava
+  }
+
   def distributedImageSetToImageTensorRdd(imageSet: DistributedImageSet,
     floatKey: String = ImageFeature.floats, toChw: Boolean = true): JavaRDD[JTensor] = {
     imageSet.rdd.map(imf => {
@@ -139,6 +145,12 @@ class PythonImageFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyt
   def distributedImageSetToPredict(imageSet: DistributedImageSet, key: String)
   : JavaRDD[JList[Any]] = {
     imageSet.rdd.map(x => imageSetToPredict(x, key))
+  }
+
+  def distributedImageSetToUri(imageSet: DistributedImageSet): JavaRDD[String] = {
+    imageSet.rdd.map { imf =>
+      imf.uri()
+    }.toJavaRDD()
   }
 
   private def imageSetToPredict(imf: ImageFeature, key: String): JList[Any] = {

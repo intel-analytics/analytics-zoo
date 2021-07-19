@@ -127,6 +127,13 @@ class ImageSet(JavaValue):
         """
         return self.image_set.get_predict(key)
 
+    def get_uri(self):
+        """
+        get image URIs from ImageSet
+        :return list (or RDD for DistributedImageSet) of URI String
+        """
+        return self.image_set.get_uri()
+
     def to_image_frame(self, bigdl_type="float"):
         return ImageFrame(callZooFunc(bigdl_type, "imageSetToImageFrame", self.value), bigdl_type)
 
@@ -173,6 +180,14 @@ class LocalImageSet(ImageSet):
                         (predict[0], list(map(lambda x: x.to_ndarray(), predict[1]))) if predict[1]
                         else (predict[0], None), predicts))
 
+    def get_uri(self):
+        """
+        get image URIs from ImageSet
+        :return list of URI String
+        """
+        uris = callBigDlFunc(self.bigdl_type, "localImageSetToUri", self.value)
+        return uris
+
 
 class DistributedImageSet(ImageSet):
     """
@@ -217,3 +232,11 @@ class DistributedImageSet(ImageSet):
                             (predict[0],
                              list(map(lambda x: x.to_ndarray(), predict[1]))) if predict[1]
                             else (predict[0], None))
+
+    def get_uri(self):
+        """
+        get image URIs from ImageSet
+        :return RDD of URI String
+        """
+        uris = callBigDlFunc(self.bigdl_type, "distributedImageSetToUri", self.value)
+        return uris
