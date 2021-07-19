@@ -1,5 +1,6 @@
 # Cluster Serving
-This example demonstrates how to use Cluster Serving with NCF model (Neural Collaborative Filtering).
+These two example demonstrates how to use Cluster Serving with NCF model (Neural Collaborative Filtering).
+ncf_zoo.py shows how to serve a BigDL NCF model, and ncf_tf.py shows how to serve a tensorflow NCF model
 
 
 ## Environment
@@ -11,9 +12,12 @@ This example demonstrates how to use Cluster Serving with NCF model (Neural Coll
 ## Install or download Analytics Zoo  
 Follow the instructions [here](https://analytics-zoo.github.io/master/#PythonUserGuide/install/) to install analytics-zoo via __pip__ or __download the prebuilt package__.  
 
-## Prepare the link
+## Prepare models
+* BigDL NCF model
 You can use the link [here](https://github.com/intel-analytics/analytics-zoo/tree/master/apps/recommendation-ncf)
- to train ncf-bigdl model.
+to train and save BigDL NCF model.
+* Tensorflow NCF model
+Please follow [tensorflow models official](https://github.com/tensorflow/models/blob/master/official/recommendation/ncf_keras_main.py) to build, train a NCF model, and use tf.saved_model.save(modelpath) to save it. 
 
 ## Run after pip install 
 * Step one: 
@@ -23,20 +27,12 @@ And after the command, you can see `config.yaml` file in your current file path.
 
 * Step two: 
 
-Modify `config.yaml` with follow changes:
+Modify `config.yaml` with following changes:
 ```
 ...
 model:
   # model path must be set
   path: /path/to/your/model
-...
-  data_type: tensor
-  # default, 3, 224, 224
-  image_shape: 
-  # must be provided given data_type is tensor. eg: [1,2] (tensor) [[1],[2,1,2],[3]] (table)
-  tensor_shape: [[1],[1]]
-  # default, topN(1)
-  filter:
 ...
 ``` 
 
@@ -45,7 +41,7 @@ model:
 Run `cluster-serving start`. Then you will see the log in your terminal.
 * Step four: 
 
-Open another terminal. Run `python input.py` then you can see the output `Result is :[[2,0.72023946]]`
+Open another terminal. Run `python ncf_zoo.py` for BigDL and `python ncf_tf.py` for tensorflow model then you can see the output from terminal.
 
 ## Run with pre-build package
 
