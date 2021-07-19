@@ -444,6 +444,13 @@ else
    echo "Finished"
 fi
 
+if [ -f /tmp/.bigdl/dataset/glove.6B.zip ]
+then
+    echo "/tmp/.bigdl/dataset/glove.6B.zip already exists"
+else
+    wget $FTP_URI/analytics-zoo-data/data/glove/glove.6B.zip -P /tmp/.bigdl/dataset
+fi
+
 ${SPARK_HOME}/bin/spark-submit \
         --master ${MASTER} \
         --driver-cores 2  \
