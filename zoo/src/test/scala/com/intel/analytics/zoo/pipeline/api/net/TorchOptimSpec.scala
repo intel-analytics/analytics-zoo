@@ -123,7 +123,7 @@ class TorchOptimSpec extends ZooSpecHelper{
       s"""
          |model = LeNet()
          |sgd = torch.optim.SGD(model.parameters(), lr=0.1)
-         |scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.1)
+         |scheduler = torch.optim.lr_scheduler.ExponentialLR(sgd, gamma=0.1)
          |torch.save(scheduler, "$tmpname", pickle_module=zoo_pickle_module)
          |""".stripMargin
     PythonInterpreter.exec(code)
@@ -154,7 +154,7 @@ class TorchOptimSpec extends ZooSpecHelper{
       s"""
          |model = LeNet()
          |sgd = torch.optim.SGD(model.parameters(), lr=0.1)
-         |scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.1)
+         |scheduler = torch.optim.lr_scheduler.ExponentialLR(sgd, gamma=0.1)
          |torch.save(scheduler, "$tmpname", pickle_module=zoo_pickle_module)
          |""".stripMargin
     PythonInterpreter.exec(code)
@@ -189,7 +189,7 @@ class TorchOptimSpec extends ZooSpecHelper{
          |model = LeNet()
          |sgd = torch.optim.SGD(model.parameters(), lr=0.1)
          |from torch.optim.lr_scheduler import ReduceLROnPlateau
-         |scheduler = ReduceLROnPlateau(optimizer, 'min', patience=2)
+         |scheduler = ReduceLROnPlateau(sgd, 'min', patience=2)
          |torch.save(scheduler, "$tmpname", pickle_module=zoo_pickle_module)
          |""".stripMargin
     PythonInterpreter.exec(code)
@@ -219,6 +219,55 @@ class TorchOptimSpec extends ZooSpecHelper{
     }
     torchOptim.getLearningRate() should be (0.001 +- 1e-10)
     weight should be (Tensor[Float](Array(0.9559f, 0.9149f, 0.8739f, 0.8329f), Array(4)))
+
+  }
+
+  "MultiTorchOptims" should "work without error" in {
+    ifskipTest()
+    val tmpname1 = createTmpFile().getAbsolutePath()
+    val tmpname2 = createTmpFile().getAbsolutePath()
+    val code = lenet +
+      s"""
+         |model = LeNet()
+         |sgd = torch.optim.SGD(model.parameters(), lr=0.1)
+         |elr1 = torch.optim.lr_scheduler.ExponentialLR(sgd, gamma=0.2)
+         |sgd2 = torch.optim.SGD(model.parameters(), lr=1.0)
+         |elr2 = torch.optim.lr_scheduler.ExponentialLR(sgd2, gamma=0.5)
+         |torch.save(elr1, "$tmpname1", pickle_module=zoo_pickle_module)
+         |torch.save(elr2, "$tmpname2", pickle_module=zoo_pickle_module)
+         |""".stripMargin
+    PythonInterpreter.exec(code)
+    val bys1 = Files.readAllBytes(Paths.get(tmpname1))
+    val bys2 = Files.readAllBytes(Paths.get(tmpname2))
+    val elr1 = TorchOptim[Float](bys1, EpochDecay)
+    val elr2 = TorchOptim[Float](bys2, EpochDecay)
+
+    val torchOptim = MultiStepTorchOptim(Array(elr1, elr2), epochs = Array(5, 100))
+    val state = getStateFromOptiMethod(torchOptim)
+
+    val weight = Tensor[Float](4).fill(1)
+    val gradient = Tensor[Float](Array(0.1f, 0.2f, 0.3f, 0.4f), Array(4))
+    state("epoch") = 1
+    torchOptim.getLearningRate() should be (0.1)
+    torchOptim.optimize(_ => (1f, gradient), weight)
+    weight should be (Tensor[Float](Array(0.99f, 0.98f, 0.97f, 0.96f), Array(4)))
+
+    for (i <- 2 to 5) {
+      state("epoch") = i
+      torchOptim.optimize(_ => (1f, gradient), weight)
+      torchOptim.getLearningRate() should be (0.1 * math.pow(0.2, i - 1) +- 1e-10)
+    }
+    println(weight)
+    weight should be (Tensor[Float](Array(0.987504f, 0.975008f, 0.962512f, 0.950016f), Array(4)))
+
+    val gradient2 = Tensor[Float](Array(0.1f, 0.1f, 0.1f, 0.1f), Array(4))
+    for (i <- 6 to 9) {
+      state("epoch") = i
+      torchOptim.optimize(_ => (1f, gradient2), weight)
+      torchOptim.getLearningRate() should be (1 * math.pow(0.5, i - 6) +- 1e-10)
+    }
+    println(weight)
+    weight should be (Tensor[Float](Array(0.800004f, 0.787508f, 0.775012f, 0.762516f), Array(4)))
 
   }
 }

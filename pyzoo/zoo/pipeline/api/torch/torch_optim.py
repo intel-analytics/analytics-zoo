@@ -51,3 +51,25 @@ class TorchOptim(OptimMethod):
         torch.save(optim, bys, pickle_module=zoo_pickle_module)
         zoo_optim = TorchOptim(bys.getvalue(), decayType)
         return zoo_optim
+
+
+class MultiStepTorchOptim(OptimMethod):
+    """
+    MultiStepTorchOptim wraps few TorchOptims for distributed training.
+    """
+    def __init__(self, torch_optims, running_epochs, bigdl_type="float"):
+        """
+        :param torch_optims: a list of TorchOptim
+        :param running_epochs: how many epochs of each TorchOptim
+        :param bigdl_type: bigdl numeric type
+        """
+        super(MultiStepTorchOptim, self).__init__(None, bigdl_type, torch_optims, running_epochs)
+
+    @staticmethod
+    def from_torch_optims(torch_optims, running_epochs):
+        """
+        :param torch_optims: a list of TorchOptim
+        :param running_epochs: how many epochs of each TorchOptim
+        """
+        zoo_optim = MultiStepTorchOptim(torch_optims, running_epochs)
+        return zoo_optim
