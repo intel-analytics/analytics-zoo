@@ -16,18 +16,36 @@
 import os
 import hashlib
 
+from pandas.core.algorithms import isin
+
+from pyspark.sql.types import DoubleType, ArrayType, DataType, StringType
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import MinMaxScaler
+from pyspark.ml.feature import VectorAssembler
+
 from pyspark.sql.types import IntegerType, ShortType, LongType, FloatType, DecimalType, \
     DoubleType, ArrayType, DataType, StructType, StringType, StructField
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import MinMaxScaler
 from pyspark.ml.feature import VectorAssembler
-from pyspark.sql.functions import col as pyspark_col, concat, udf, array, broadcast, lit
-from pyspark.sql import Row
+
+from pyspark.sql.functions import col as pyspark_col, concat, udf, array, broadcast, \
+    lit, rank, col, monotonically_increasing_id
+from pyspark.sql import Row, Window
 import pyspark.sql.functions as F
 
 from zoo.orca import OrcaContext
 from zoo.friesian.feature.utils import *
 from zoo.common.utils import callZooFunc
+
+
+from functools import reduce
+from pyspark.ml.feature import Bucketizer
+from pyspark.sql.functions import udf
+from pyspark.sql.types import *
+
+import numpy as np
+
 
 JAVA_INT_MIN = -2147483648
 JAVA_INT_MAX = 2147483647
@@ -526,6 +544,120 @@ class Table:
             df_cast.df = df_cast.df.withColumn(i, pyspark_col(i).cast(dtype))
         return df_cast
 
+    def write_to_csv(self, path, partition=1, mode="overwrite", header=False):
+        """
+        Write the table to csv file.
+
+        :param path: string, the path where csv file is written into.
+        :param partition: positive int, specifies the number of files to write.
+        :param mode: string, specify the writing mode.
+        :param header: bool, indicates whether to include the schema at first line in csv file.
+        """
+        self.df.repartition(partition).write.csv(path=path, mode=mode, header=header)
+
+    def _concat(self, join="outer"):
+        def concat_inner(self, df2):
+            col_names_1 = set(self.schema.names)
+            col_names_2 = set(df2.schema.names)
+            for col in list(col_names_1.difference(col_names_2)):
+                self = self.drop(col)
+            for col in list(col_names_2.difference(col_names_1)):
+                df2 = df2.drop(col)
+            return self.unionByName(df2)
+
+        def concat_outer(self, df2):
+            col_names_1 = set(self.schema.names)
+            col_names_2 = set(df2.schema.names)
+            for col in col_names_1.difference(col_names_2):
+                df2 = df2.withColumn(col, lit(None).cast(self.schema[col].dataType))
+            for col in col_names_2.difference(col_names_1):
+                self = self.withColumn(col, lit(None).cast(df2.schema[col].dataType))
+            return self.unionByName(df2)
+        if join == "outer":
+            return concat_outer
+        else:
+            return concat_inner
+
+    def concat(self, tables, mode="inner", distinct=False):
+        """
+        Concatenate a list of tables into one table in the dimension of row.
+
+        :param tables: str or a list, a list of table(s).
+        :param mode: str, can only be outer/inner. If mode equals to "inner", then the
+        new table only contains columns that are shared by all tables. If mode equals to "outer",
+        the the new table contains all columns appered in the list of tables.
+        :param distinct: bool, If distinct is True, the result table only contains distinct rows.
+
+        :return: a single table with rows combined from input tables.
+        """
+        if mode not in ["outer", "inner"]:
+            raise ValueError("join should take either outer or inner, but got {}.".format(mode))
+        if not isinstance(tables, list):
+            tables = [tables]
+        dfs = [table.df for table in tables] + [self.df]
+        df = reduce(self._concat(mode), dfs)
+        if distinct:
+            df = df.distinct()
+        return self._clone(df)
+
+    def drop_duplicates(self, subset=None, order=None, keep_min=True):
+        """
+        Return a new table with duplicate rows removed.
+        :param subset: str or a list of str, specifies which column(s) to be considered when
+        referring to duplication.
+        :param order: str, specifies the column to determine which item to keep when duplicated
+        items are found.
+        :param keep_min: bool, specifies keep the smallest one or largest one.
+
+        :return: a new table with duplicate rows removed.
+        """
+        if subset is None:
+            return self._clone(self.df.dropDuplicates())
+        if not isinstance(subset, list):
+            subset = [subset]
+        check_col_exists(self.df, subset)
+        check_col_exists(self.df, [order])
+        if keep_min:
+            window = Window.partitionBy(subset).orderBy(order, 'tiebreak')
+        else:
+            window = Window.partitionBy(subset).orderBy(col(order).desc(), 'tiebreak')
+        df = self.df.withColumn('tiebreak', monotonically_increasing_id())\
+            .withColumn('rank', rank().over(window))
+        df = df.filter(col('rank') == 1).drop('rank', 'tiebreak')
+        return self._clone(df)
+
+    def cut_bins(self, bins, column, labels=None, name="bucket", drop=True):
+        """
+        Segment values of the target column into bins.
+
+        :param bins: list or an int. If bins is a list, it defines bins to be used. With n+1 splits,
+        there are n buckets. A bucket defined by splits x,y holds values in the range [x,y) except
+        the last bucket, which also includes y. Bins should be of length >= 3 and strictly
+        increasing.If bins is an int, it defines the number of equal-width bins in the range of
+        all column values.
+        :param column: str, specifies the name of the target column.
+        :labels: list, specifies the labels for the returned bins. If lable is None, then the
+        new bin column would use integer to encode categories.
+        :name: str, specifies the name of output categorical column, default name is "bucket".
+        :drop: bool, specifies whether to drop the original target column.
+
+        :return: a new Table with the updated bin column.
+        """
+        check_col_exists(self.df, [column])
+        if isinstance(bins, int):
+            maxValue = self.df.agg({column: "max"}).collect()[0][0]
+            minValue = self.df.agg({column: "min"}).collect()[0][0]
+            bins = np.linspace(minValue, maxValue, bins+1, endpoint=True).tolist()
+        bucketizer = Bucketizer(splits=bins, inputCol=column, outputCol=name)
+        df_buck = bucketizer.setHandleInvalid("keep").transform(self.df)
+        if labels is not None:
+            to_label = {i: label for (i, label) in enumerate(labels)}
+            udf_label = udf(lambda i: to_label[i], StringType())
+            df_buck = df_buck.withColumn(name, udf_label(name))
+        if drop:
+            df_buck = df_buck.drop(column)
+        return self._clone(df_buck)
+
     def append_column(self, name, value):
         """
         Append a column with a constant value to the Table.
@@ -1012,17 +1144,29 @@ class FeatureTable(Table):
         df = self.df.withColumn(out_col, udf_func(pyspark_col(in_col)))
         return FeatureTable(df)
 
-    def join(self, table, on=None, how=None):
+    def join(self, table, on=None, how=None, lsuffix=None, rsuffix=None):
         """
         Join a FeatureTable with another FeatureTable, it is wrapper of spark dataframe join
 
         :param table: FeatureTable
-        :param on: string, join on this column
+        :param on: string or list of string, join on this column
         :param how: string
+        :param lsuffix: suffix to use for left table's overlapping columns.
+        :param rsuffix: suffix to use for right table's overlapping columns.
 
         :return: FeatureTable
         """
         assert isinstance(table, Table), "the joined table should be a Table"
+        if not isinstance(on, list):
+            on = [on]
+        overlap_columns = list(set(self.df.schema.names).
+                               intersection(set(table.df.schema.names)).difference(on))
+        if lsuffix is not None:
+            names = {column: column + lsuffix for column in overlap_columns}
+            self = self.rename(names)
+        if rsuffix is not None:
+            names = {column: column + rsuffix for column in overlap_columns}
+            table = table.rename(names)
         joined_df = self.df.join(table.df, on=on, how=how)
         return FeatureTable(joined_df)
 
