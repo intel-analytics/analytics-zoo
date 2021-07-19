@@ -1277,6 +1277,34 @@ class DataFrameDataset(TFNdarrayDataset):
                                                batch_per_thread, hard_code_batch_size,
                                                val_rdd, memory_type, sequential_order, shuffle)
 
+def _check_compatible(names, structure, data_type="model_input"):
+    if isinstance(structure, dict):
+        err_msg = f"all {data_type} names should exist in data, " \
+                  f"got {data_type} {names}, data {structure}"
+        assert all([name in structure for name in names]), err_msg
+
+    if isinstance(structure, list) or isinstance(structure, tuple):
+        err_msg = f"{data_type} number does not match data number, " \
+                  f"got {data_type} {names}, data {structure}"
+        assert len(structure) == len(names), err_msg
+
+    assert len(names) == 1, f"data does not match {data_type}, " \
+                                  f"data {structure}, {data_type} {names}"
+
+
+def check_data_compatible(dataset, model, mode):
+    input_names = model.input_names
+    output_names = model.output_names
+    err_msg = f"each element is dataset should a tuple for {mode}, " \
+              f"but got {dataset.tensor_structure}"
+    assert isinstance(dataset.tensor_structure, tuple), err_msg
+
+    feature = dataset.tensor_structure[0]
+    _check_compatible(input_names, feature, data_type="model_input")
+    if mode == "train" or mode == "evaluate":
+        label = dataset.tensor_structure[1]
+        _check_compatible(output_names, label, data_type="model_target")
+
 
 def _check_compatible(names, structure, data_type="model_input"):
     if isinstance(structure, dict):
