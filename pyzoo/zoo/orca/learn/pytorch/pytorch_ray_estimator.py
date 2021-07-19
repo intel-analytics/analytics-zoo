@@ -15,6 +15,8 @@
 #
 
 import io
+import os
+import shutil
 import types
 import logging
 import numbers
@@ -31,6 +33,8 @@ from zoo.ray import RayContext
 
 import ray
 from ray.exceptions import RayActorError
+
+from tensorboardX import SummaryWriter
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +234,11 @@ class PyTorchRayEstimator:
                                                        info=info)
 
         epoch_stats = list(map(list, zip(*worker_stats)))
+        if os.path.exists("./runs"):
+            shutil.rmtree("./runs")
+        writer = SummaryWriter('runs/Training_loss')
+        for stat in epoch_stats:
+            writer.add_scalar("training_loss", stat[0]['train_loss'], stat[0]['epoch'])
         if reduce_results:
             for i in range(len(epoch_stats)):
                 epoch_stats[i] = self._process_stats(epoch_stats[i])
