@@ -5,6 +5,7 @@ ARG JDK_URL=your_jdk_url
 ARG BIGDL_VERSION=0.13.0
 ARG ANALYTICS_ZOO_VERSION=0.12.0-SNAPSHOT
 ARG TINI_VERSION=v0.18.0
+ARG FLINK_VERSION=1.13.0
 
 # stage.1 jdk & spark
 FROM ubuntu:18.04 as spark
@@ -58,7 +59,34 @@ RUN /opt/download-analytics-zoo.sh && \
     mv /opt/analytics-zoo-examples/python/zoo/examples/* /opt/analytics-zoo-examples/python && \
     rm -rf /opt/analytics-zoo-examples/python/zoo/examples
 
-# stage.3 copies layer
+# stage.3 flink
+FROM ubuntu:18.04 as flink
+ARG FLINK_VERSION
+ENV FLINK_HOME                          /opt/flink-${FLINK_VERSION}
+RUN apt-get update --fix-missing && \
+    apt-get install -y wget unzip&& \
+    wget https://archive.apache.org/dist/flink/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_2.11.tgz && \
+    tar -xf flink-*.tgz -C /opt && \
+    rm flink-*.tgz
+
+ADD *.sh /opt/work/scripts/
+RUN chmod a+x /opt/work/scripts/*.* && \
+    /opt/work/scripts/download-cluster-serving-all-zip.sh && \
+    mkdir -p $FLINK_HOME/usrlib && \
+    cp /cluster-serving/analytics-zoo-*-http.jar $FLINK_HOME/usrlib && \
+    cp /cluster-serving/analytics-zoo-*-serving.jar $FLINK_HOME/usrlib
+
+ADD resources/ /opt/work/cluster-serving/resources/
+ADD *.py /opt/work/cluster-serving/
+ADD perf/ /opt/work/perf/
+ADD freeze_checkpoint.py /opt/work
+
+RUN chmod a+x /opt/work/cluster-serving/*
+
+RUN sed -i "s/jobmanager\.heap\.size:.*/jobmanager\.heap\.size: 8g/g" $FLINK_HOME/conf/flink-conf.yaml && \
+    sed -i "s/taskmanager\.memory\.process\.size:.*/taskmanager\.memory\.process\.size: 8g/g" $FLINK_HOME/conf/flink-conf.yaml
+
+# stage.4 copies layer
 FROM ubuntu:18.04 as copies-layer
 ARG ANALYTICS_ZOO_VERSION
 
@@ -67,9 +95,9 @@ COPY --from=analytics-zoo /opt/analytics-zoo-examples/python /opt/analytics-zoo-
 COPY --from=spark /opt/jdk /opt/jdk
 COPY --from=spark /opt/spark /opt/spark
 COPY --from=spark /opt/spark/kubernetes/dockerfiles/spark/entrypoint.sh /opt
+COPY --from=flink /opt /opt
 
-
-# stage.4
+# stage.5
 FROM ubuntu:18.04
 MAINTAINER The Analytics-Zoo Authors https://github.com/intel-analytics/analytics-zoo
 ARG ANALYTICS_ZOO_VERSION
@@ -77,7 +105,9 @@ ARG BIGDL_VERSION
 ARG SPARK_VERSION
 ARG SPARK_HOME
 ARG TINI_VERSION
+ARG FLINK_VERSION
 
+ENV FLINK_HOME                          /opt/flink-${FLINK_VERSION}
 ENV ANALYTICS_ZOO_VERSION               ${ANALYTICS_ZOO_VERSION}
 ENV SPARK_HOME                          ${SPARK_HOME}
 ENV SPARK_VERSION                       ${SPARK_VERSION}
@@ -117,7 +147,7 @@ ADD ./start-notebook-k8s.sh /opt
 RUN mkdir -p /opt/analytics-zoo-examples/python && \
     mkdir -p /opt/analytics-zoo-examples/scala && \
     apt-get update --fix-missing && \
-    apt-get install -y apt-utils vim curl nano wget unzip maven git && \
+    apt-get install -y vim curl nano wget unzip maven git && \
     apt-get install -y gcc g++ make && \
     apt-get install -y libsm6 libxext6 libxrender-dev && \
     rm /bin/sh && \
@@ -157,5 +187,4 @@ RUN mkdir -p /opt/analytics-zoo-examples/python && \
     cp /sbin/tini /usr/bin/tini    
 
 WORKDIR /opt/spark/work-dir
-
-ENTRYPOINT [ "/opt/entrypoint.sh" ]
+ENTRYPOINT [ "/opt/entrypoint.sh"]
