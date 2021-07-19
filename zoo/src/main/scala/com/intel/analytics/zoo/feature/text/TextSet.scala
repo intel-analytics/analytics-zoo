@@ -378,6 +378,33 @@ object TextSet {
     TextSet.rdd(textRDD)
   }
 
+  def fromRelations(
+      relations: RDD[Relation],
+      corpus1: TextSet,
+      corpus2: TextSet,
+      memoryType: MemoryType = DRAM): DistributedTextSet = {
+    require(corpus1.isDistributed, "corpus1 must be a DistributedTextSet")
+    require(corpus2.isDistributed, "corpus2 must be a DistributedTextSet")
+    val joinedText1 = corpus1.toDistributed().rdd.keyBy(_.getURI)
+      .join(relations.keyBy(_.id1)).map(_._2)
+    val joinedText2 = corpus2.toDistributed().rdd.keyBy(_.getURI)
+      .join(joinedText1.keyBy(_._2.id2)).map(x => (x._2._2._1, x._2._1, x._2._2._2.label))
+    val res = joinedText2.map(x => {
+      val textFeature = TextFeature(null, uri = x._1.getURI + x._2.getURI, label = x._3)
+      val text1 = x._1.getIndices
+      val text2 = x._2.getIndices
+      require(text1 != null,
+        "corpus1 haven't been transformed from word to index yet, please word2idx first")
+      require(text2 != null,
+        "corpus2 haven't been transformed from word to index yet, please word2idx first")
+      val feature = Tensor(text1 ++ text2, Array(text1.length + text2.length))
+      val label = Tensor(Array(x._3.toFloat), Array(1))
+      textFeature(TextFeature.sample) = Sample(feature, label)
+      textFeature
+    }).setName("Classification Set")
+    TextSet.rdd(res, memoryType)
+  }
+
   /**
    * Used to generate a TextSet for pairwise training.
    *
