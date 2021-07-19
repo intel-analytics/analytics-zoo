@@ -33,7 +33,7 @@
         <scala-library-scope>compile</scala-library-scope>
         <spark-mllib-scope>compile</spark-mllib-scope>
         <scala.major.version>2.11</scala.major.version>
-        <scala.version>2.11.8</scala.version>
+        <scala.version>2.13.5</scala.version>
         <scala.macros.version>2.1.0</scala.macros.version>
         <scalatest.version>3.0.7</scalatest.version>
         <spark.version>2.4.6</spark.version>
