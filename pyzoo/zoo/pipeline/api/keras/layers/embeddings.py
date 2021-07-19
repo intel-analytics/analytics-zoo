@@ -79,7 +79,43 @@ class Embedding(ZooKerasLayer):
                                         zero_based_id,
                                         **kwargs)
 
+class CharEmbedding(ZooKerasLayer):
+    """
+    Turn sequence of character indices into dense word vectors of fixed size.
+    The input of this layer should be 2D.
 
+    This layer can only be used as the first layer in a model, you need to provide the argument
+    inputShape (a Single Shape, does not include the batch dimension).
+
+    References
+      - [Character-Aware Neural Language Models](https://arxiv.org/abs/1508.06615)
+
+    # Arguments
+    input_dim: Size of the alphabet, ie. 1 + maximum integer index occurring in the input data.
+              Each character index in the input should be within range [0, inputDim-1]. Int > 0.
+    output_dim: Dimension of the dense character-level word embedding. Int > 0.
+    char_embed_dim: Dimension of the dense character embedding. Int > 0. 
+    kernel_row: Number of rows in the char-cnn kernel. Int > 0.
+    input_length: The sequence length of each word.  Int > 0.
+    name: String to set the name of the layer.
+          If not specified, its name will by default to be a generated string.
+
+    >>> embedding = CharEmbedding(30, 50, 50, input_length=10, name="charembedding1")
+    creating: createZooKerasCharEmbedding
+    """
+    def __init__(self, input_dim, output_dim, char_embed_dim, kernel_row=2, input_length,
+                  input_shape=None, **kwargs):
+        if input_length:
+            input_shape = (input_length,)
+        super(CharEmbedding, self).__init__(None,
+                                        input_dim,
+                                        output_dim,
+                                        char_embed_dim,
+                                        kernel_row,
+                                        list(input_shape) if input_shape else None,
+                                        **kwargs)
+        
+        
 class WordEmbedding(ZooKerasLayer):
     """
     Embedding layer that directly loads pre-trained word vectors as weights.
