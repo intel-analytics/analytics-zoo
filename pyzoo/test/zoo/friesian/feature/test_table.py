@@ -535,7 +535,7 @@ class TestTable(TestCase):
             feature_tbl.gen_target("col_4", "target", kfold=2, fold_col="col_3")
         self.assertTrue("fold_col should be integer type" in str(context.exception))
 
-        target_tbl1, target_list1 = feature_tbl.gen_target("col_4", "target", smooth=0)
+        target_tbl1, target_list1 = feature_tbl.gen_target("col_4", "target", kfold=1, smooth=0)
         assert target_tbl1.df.columns == feature_tbl.df.columns, \
                 "target_tbl1 should be the same as feature_tbl"
         assert len(target_list1) == 1, "len(target_list1) = len(cat_cols) of gen_target"
@@ -567,6 +567,8 @@ class TestTable(TestCase):
             for out_col in out_cols[i]:
                 assert out_col in target_list2[i].df.columns, "every out_cols should be one of " \
                         "the columns in returned TargetCode"
+                assert out_col in target_list2[i].all_df.columns, "every out_cols should be one" \
+                        " of the columns of all_df in returned TargetCode"
                 assert target_mean[target_list2[i].out_target_mean[out_col][0]] == \
                         target_list2[i].out_target_mean[out_col][1], "the global mean in " \
                         "TargetCode should be the same as the assigned mean in target_mean"
@@ -576,31 +578,48 @@ class TestTable(TestCase):
         feature_tbl = FeatureTable.read_parquet(file_path)
         spark = OrcaContext.get_spark_session()
 
-        data = [("aa", 1.0),
+        data = [("aa", 0, 1.0),
+                ("bb", 0, 2.0),
+                ("cc", 0, 3.0),
+                ("dd", 0, 4.0),
+                ("aa", 1, 2.0),
+                ("bb", 1, 3.0),
+                ("cc", 1, 4.0),
+                ("dd", 1, 5.0)]
+        schema = StructType([StructField("unknown", StringType(), True),
+            StructField("target", StringType(), True),
+            StructField("col_5_te_col_1", DoubleType(), True)])
+        df0 = spark.createDataFrame(data, schema)
+        all_data = [("aa", 1.0),
                 ("bb", 2.0),
                 ("cc", 3.0),
                 ("dd", 4.0)]
-        schema = StructType([StructField("unknown", StringType(), True),
-                             StructField("col_5_target", DoubleType(), True)])
-        df0 = spark.createDataFrame(data, schema)
+        all_schema = StructType([StructField("unknown", StringType(), True),
+            StructField("col_5_te_col_1", DoubleType(), True)])
+        all_df0 = spark.createDataFrame(all_data, all_schema)
         target_code0 = TargetCode(df0,
+                all_df0,
                 cat_col="unknown",
-                out_target_mean={"col_5_target":("target", 0.5)},
-                kfold=1,
-                fold_col=None)
+                out_target_mean={"col_5_te_col_1":("col_1", 0.5)},
+                kfold=2,
+                fold_col="target")
         with self.assertRaises(Exception) as context:
             feature_tbl.encode_target(target_code0)
         self.assertTrue("unknown in TargetCode.cat_col in targets does not exist in Table" \
                 in str(context.exception))
 
         target_code1 = target_code0.rename({"unknown":"col_5"})
-        target_tbl1 = feature_tbl.encode_target(target_code1)
-        assert target_tbl1.df.filter("col_5_target == 1").count() == \
+        target_tbl1 = feature_tbl.encode_target(target_code1, is_train=False)
+        assert target_tbl1.df.filter("col_5_te_col_1 == 1").count() == \
                 feature_tbl.df.filter("col_5 == 'aa'").count(), \
-                "the row with col_5 = 'aa' be encoded as col_5_target = 1 in target_tbl1"
+                "the row with col_5 = 'aa' be encoded as col_5_te_col_1 = 1 in target_tbl1"
         assert target_tbl1.df.filter("col_3 == 8.0 and col_4 == 'd'") \
-                .filter("col_5_target == 3"), "the row with col_3 = 8.0 and col_4 = 'd' " \
-                "has col_5 = 'cc', so it should be encoded with col_5_target = 3 in target_tbl1"
+                .filter("col_5_te_col_1 == 3"), "the row with col_3 = 8.0 and col_4 = 'd' " \
+                "has col_5 = 'cc', so it should be encoded with col_5_te_col_1 = 3 in target_tbl1"
+        target_tbl1_ = feature_tbl.encode_target(target_code1, is_train=True)
+        assert target_tbl1_.df.filter("col_5_te_col_1 == 1").count() == \
+                feature_tbl.df.filter("col_5 == 'aa' and target == 0").count(), "the row with " \
+                "col_5 = 'aa' and target = 0 be encoded as col_5_te_col_1 = 1 in target_tbl1"
 
         target_tbl2, target_list2 = feature_tbl.gen_target(["col_4", "col_5"], ["col_3", "target"],
                 kfold=2)
