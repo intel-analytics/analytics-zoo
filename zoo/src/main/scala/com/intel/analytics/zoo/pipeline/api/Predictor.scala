@@ -174,15 +174,34 @@ object Predictor {
       localModel.evaluate()
       val localTransformer = otherBroad.value.cloneTransformer()
       val miniBatch = localTransformer(partition) ++ Array(null)
-      miniBatch.flatMap { batch =>
+
+      // the timestamp might be compared across machine
+      var startTimeStamp = System.currentTimeMillis()
+      var records = 0
+      var tens_of_thousands = 0
+      var last_log_records = 0
+      val result = miniBatch.flatMap { batch =>
         if (batch != null) {
           val output = localModel.forward(batch.getInput)
-          splitBatch(output, shareBuffer, batch.size())
+          val recordList = splitBatch(output, shareBuffer, batch.size())
+          records += batch.size()
+          if (records ==  0) {
+              startTimeStamp = System.currentTimeMillis()
+          }
+          if (records / 10000 > tens_of_thousands) {
+              val done_tens_of_thousands = System.currentTimeMillis()
+              println(s"Done ${records - last_log_records} records at timestamp ${done_tens_of_thousands}")
+              tens_of_thousands = records / 10000
+          }
+          recordList
         } else {
+          val endTimeStamp = System.currentTimeMillis()
+          println(s"Predictor: Done ${records} records using ${endTimeStamp - startTimeStamp}, throughput ${1.0 * records / ((endTimeStamp - startTimeStamp)/1.0e6)}")
           localModel.release()
           Seq.empty
         }
       }
+      result
     }
   }
 
