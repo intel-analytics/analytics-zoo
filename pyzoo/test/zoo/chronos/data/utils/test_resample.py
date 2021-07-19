@@ -79,7 +79,7 @@ class TestResampleTimeSeries(ZooTestCase):
         data = {
             'data': [
                 1, 2, 3], 'datetime': [
-                "2020-11-09T07", "2020-11-09T08", "2020-11-09T10"]}
+                "2020-11-09T08", "2020-11-09T09", "2020-11-09T11"]}
         df = pd.DataFrame(data)
         df['datetime'] = pd.to_datetime(df['datetime'])
         res_df = resample_timeseries_dataframe(
