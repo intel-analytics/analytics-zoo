@@ -65,7 +65,8 @@ class TSDataset:
 
         self._id_list = list(np.unique(self.df[self.id_col]))
         self._is_pd_datetime = pd.api.types.is_datetime64_any_dtype(self.df[self.dt_col].dtypes)
-
+        self._is_aligned = hash(str(self.df[self.df[self.id_col]==self._id_list[0]][self.dt_col]\
+            .tolist()*len(self._id_list))) == hash(str(self.df[self.dt_col].to_list()))
     @staticmethod
     def from_pandas(df,
                     dt_col,
@@ -202,6 +203,13 @@ class TSDataset:
         :return: the tsdataset instance.
         '''
         df_list = []
+        from warnings import warn
+        if start_time is None or end_time is None or not self._is_aligned:
+            warn("The resample method will not align the time of tsdata for each id,\
+             please set the start_time and end_time to align them.", UserWarning)
+        assert self._is_pd_datetime,\
+            "The time series data does not have a Pandas datetime format\
+            (you can use pandas.to_datetime to convert a string into a datetime format)."
         for id_name in self._id_list:
             df_id = resample_timeseries_dataframe(df=self.df[self.df[self.id_col] == id_name]
                                                   .drop(self.id_col, axis=1),
@@ -234,6 +242,8 @@ class TSDataset:
 
         :return: the tsdataset instance.
         '''
+        assert self._is_pd_datetime, "The time series data does not have a Pandas datetime format\
+                    (you can use pandas.to_datetime to convert a string into a datetime format.)"
         df_list = [generate_dt_features(input_df=self.df[self.df[self.id_col] == id_name],
                                         dt_col=self.dt_col)
                    for id_name in self._id_list]
@@ -318,6 +328,9 @@ class TSDataset:
         else:
             default_fc_parameters = settings
 
+        assert window_size < min([len(self.df[self.df[self.id_col] == i])
+                                  for i in self._id_list]) + 1, "gen_rolling_feature should\
+                                  have a window_size smaller than shortest time series length."
         df_rolled = roll_time_series(self.df,
                                      column_id=self.id_col,
                                      column_sort=self.dt_col,
@@ -403,6 +416,9 @@ class TSDataset:
         >>> print(x.shape, y.shape) # x.shape = (1, 1, 6) y.shape = (1, 1, 2)
 
         '''
+        if id_sensitive and not self._is_aligned:
+            raise AssertionError("The time series data should be\
+                 aligned if id_sensitive is set to True.")
         feature_col = _to_list(feature_col, "feature_col") if feature_col is not None \
             else self.feature_col
         target_col = _to_list(target_col, "target_col") if target_col is not None \
