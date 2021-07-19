@@ -86,7 +86,9 @@ def detect_conda_env_name():
         item = line.split(':')
         if len(item) == 2:
             if item[0].strip() == "active environment":
-                return item[1].strip()
+                conda_name = item[1].strip()
+                if conda_name != "None":
+                    return conda_name
     # For anaconda2 or if any error occurs above
     python_location = detect_python_location()
     if "envs" in python_location:
