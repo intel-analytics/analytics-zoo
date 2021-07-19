@@ -20,8 +20,10 @@ import com.intel.analytics.bigdl.models.utils.ModelBroadcast
 import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity}
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
-import com.intel.analytics.zoo.feature.text.{DistributedTextSet, LocalTextSet, TextSet}
+import com.intel.analytics.zoo.feature.common.Relation
+import com.intel.analytics.zoo.feature.text.{DistributedTextSet, LocalTextSet, TextFeature, TextSet}
 import org.apache.log4j.Logger
+import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 import scala.util.Random
@@ -103,6 +105,25 @@ trait Ranker[T] {
     val ndcg = evaluate(x, Ranker.ndcg[T](k, threshold))
     logger.info(s"ndcg@$k: $ndcg")
     ndcg
+  }
+
+  def predictRelationLists(
+      relations: RDD[Relation],
+      corpus1: TextSet,
+      corpus2: TextSet): DistributedTextSet = {
+    val relationLists = TextSet.fromRelationLists(relations, corpus1, corpus2)
+    val rdd = relationLists.rdd
+    val modelBroad = ModelBroadcast[T]().broadcast(rdd.sparkContext, model.evaluate())
+    val result = rdd.mapPartitions(partition => {
+      val localModel = modelBroad.value()
+      partition.map(feature => {
+        val input = feature.getSample.feature()
+        val output = localModel.forward(input).toTensor[T]
+        feature(TextFeature.predict) = output
+        feature
+      })
+    })
+    TextSet.rdd(result)
   }
 }
 

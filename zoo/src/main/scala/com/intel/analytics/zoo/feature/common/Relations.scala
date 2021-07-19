@@ -27,8 +27,9 @@ object Relations {
 
   /**
    * Read relations from csv or txt file.
-   * Each record is supposed to contain the following three fields in order:
+   * Each record is supposed to contain the following fields in order:
    * id1(String), id2(String) and label(Integer).
+   * If you are reading relations for inference only, there can be no label in each record.
    *
    * For csv file, it should be without header.
    * For txt file, each line should contain one record with fields separated by comma.
@@ -43,14 +44,21 @@ object Relations {
   def read(path: String, sc: SparkContext, minPartitions: Int = 1): RDD[Relation] = {
     sc.textFile(path, minPartitions).map(line => {
       val subs = line.split(",")
-      Relation(subs(0), subs(1), subs(2).toInt)
+      require(subs.length >=2, "A Relation must contain id1 and id2")
+      if (subs.length > 2) {
+        Relation(subs(0), subs(1), subs(2).toInt)
+      }
+      else {
+        Relation(subs(0), subs(1), 0)
+      }
     })
   }
 
   /**
    * Read relations from csv or txt file.
-   * Each record is supposed to contain the following three fields in order:
+   * Each record is supposed to contain the following fields in order:
    * id1(String), id2(String) and label(Integer).
+   * If you are reading relations for inference only, there can be no label in each record.
    *
    * For csv file, it should be without header.
    * For txt file, each line should contain one record with fields separated by comma.
@@ -62,7 +70,13 @@ object Relations {
     val src = Source.fromFile(path)
     src.getLines().toArray.map(line => {
       val subs = line.split(",")
-      Relation(subs(0), subs(1), subs(2).toInt)
+      require(subs.length >=2, "A Relation must contain id1 and id2")
+      if (subs.length > 2) {
+        Relation(subs(0), subs(1), subs(2).toInt)
+      }
+      else {
+        Relation(subs(0), subs(1), 0)
+      }
     })
   }
 
