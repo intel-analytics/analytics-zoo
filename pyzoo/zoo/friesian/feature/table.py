@@ -24,6 +24,9 @@ from pyspark.ml.feature import VectorAssembler
 from pyspark.sql.functions import col as pyspark_col, concat, udf, array, broadcast, lit
 from pyspark.sql import Row
 import pyspark.sql.functions as F
+from pyspark.traceback_utils import SCCallSiteSync
+from pyspark.serializers import BatchedSerializer, PickleSerializer
+from pyspark.rdd import _load_from_socket
 
 from zoo.orca import OrcaContext
 from zoo.friesian.feature.utils import *
@@ -400,19 +403,26 @@ class Table:
         spark = OrcaContext.get_spark_session()
         return self._clone(spark.createDataFrame(data, schema))
 
-    def to_list(self, column):
+    def to_list(self, columns):
         """
-        Convert all values of the target column to a list.
+        Convert all values of the target columns to a list.
         Only call this if the Table is small enough.
 
-        :param column: str, specifies the name of target column.
+        :param columns: str or a list of str, specifies the name of target columns, 
+               if the columns is a list of column, then return a list of lists.
 
-        :return: list, contains all values of the target column.
+        :return: list, contains all values of the target columns.
         """
-        if not isinstance(column, str):
-            raise ValueError("Column must have type str.")
-        check_col_exists(self.df, [column])
-        return self.df.select(column).rdd.flatMap(lambda x: x).collect()
+        if not isinstance(columns, list):
+            columns = [columns]
+        for c in columns:
+            if not isinstance(c, str):
+                raise ValueError("Column must have type str.")
+        check_col_exists(self.df, columns)
+        if len(columns) == 1:
+            return self.df.select(columns).rdd.flatMap(lambda x: x).collect()
+        else:
+            return self.df.select(columns).rdd.map(lambda x: list(x)).collect()
 
     def to_dict(self):
         """
@@ -536,6 +546,99 @@ class Table:
         :return: A new Table with the appended column.
         """
         return self._clone(self.df.withColumn(name, lit(value)))
+
+    def sort(self, columns, ascending=None):
+        """
+        Sort the target columns with the specified order.
+
+        :param columns: str or a list of str, specifies the name of target columns.
+        :param orders: boolean or a list of boolean,
+        specifies whether sort the corresponding column with an ascending order or not,
+        default to sort the columns with all ascending orders.
+        
+        For example, if a table contains columns id and user,
+        Sort the table with sort(["id", "user"], [True, False]) will sort with id in ascending order first,
+        then if it contains duplicate values for id, then sorts with user in decending order.
+        
+        :return: A new Table with sorted columns.
+        """
+        if not isinstance(columns, list):
+            columns = [columns]
+        if ascending is None:
+            ascending = [True] * len(columns)
+        elif not isinstance(ascending, list):
+            ascending = [ascending]
+        assert len(ascending) == len(columns)
+        columns = [pyspark_col(columns[i]).asc()
+                   if ascending[i] else pyspark_col(columns[i]).desc() for i in range(len(columns))]
+        return self._clone(self.df.sort(columns))
+
+    def iloc(self, column, indexes, value):
+        """
+        Change the value of the column of with specified indexs and value.
+
+        :param columns: str, specifies the name of target column.
+        :param indexes: int or a list of int, specifies the indexes target column.
+        :param value: The constant value for the target column.
+
+        :return: A new Table with changed value.
+        """
+        spark = OrcaContext.get_spark_session()
+        if not isinstance(indexes, list):
+            indexes = [indexes]
+        self.df.createOrReplaceTempView('tbl')
+        temp = spark.sql("select row_number() over (order by '') -1 as index, * from tbl")
+        schema = temp.select(["index", column]).schema
+        origin_data = temp.sort(pyspark_col("index")).select(["index", column])
+        with SCCallSiteSync(origin_data._sc) as css:
+            sock_info = origin_data._jdf.collectToPython()
+        origin_data = list(_load_from_socket(sock_info, BatchedSerializer(PickleSerializer())))
+        data = [Row(i, value) if i in indexes else origin_data[i]
+                for i in range(len(origin_data))]
+        new_temp = spark.createDataFrame(data, schema)
+        temp = temp.drop(column).join(new_temp, on="index", how="left")
+        temp = temp.sort(pyspark_col("index").asc())
+        temp = temp.drop("index")
+        return self._clone(temp)
+
+    def append_list(self, column, list):
+        """
+        Append a list of value to the Table with givn column name.
+
+        :param column: str, specifies the name of the column.
+        :param list: list of tuple,
+        which contains the index of the value and the value.
+
+        :return: A new Tale with the appended list
+        """
+        spark = OrcaContext.get_spark_session()
+        self.df.createOrReplaceTempView('tbl')
+        temp = spark.sql("select row_number() over (order by '') -1 as index, * from tbl")
+        schema = StructType([StructField("index", IntegerType(), True),
+                            StructField(column, StringType(), True)])
+        tbl = spark.createDataFrame(list, schema)
+        temp = temp.join(tbl, on="index", how="left").drop("index")
+        return self._clone(temp)
+
+    def shift(self, in_col, out_col, offset=1, nan=None):
+        """
+        Shift down a column with offset.
+
+        :param in_col: str, specifies the name of the input column.
+        :param out_col: str,specifies the name of the output column.
+        :offset: int, number of cells that need to shift down, default to 1.
+        :nan: value to be replaced in the cell.
+
+        :return: A new Table with shifted column.
+        """
+        spark = OrcaContext.get_spark_session()
+        self.df.createOrReplaceTempView("tbl")
+        temp = spark.sql("select row_number() over (order by '') -1 as index, * from tbl")
+        w = Window().partitionBy().orderBy(pyspark_col("index"))
+        temp = temp.drop(out_col) if out_col in temp.columns else temp
+        temp = temp.select("*", lag(in_col, offset, nan).over(w).alias(out_col))
+        temp = temp.drop("index")
+        return self._clone(temp)
 
     def __getattr__(self, name):
         """

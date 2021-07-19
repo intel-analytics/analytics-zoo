@@ -661,11 +661,14 @@ class TestTable(TestCase):
         list3 = tbl.to_list("age")
         list4 = tbl.to_list("height")
         list5 = tbl.to_list("array")
+        list6 = tbl.to_list(["name", "num"])
         assert list1 == ["jack", "alice", "rose"], "the result of name is not correct"
         assert list2 == ["123", "34", "25344"], "the result of num is not correct"
         assert list3 == [14, 25, 23], "the result of age is not correct"
         assert list4 == [8.5, 9.6, 10.0], "the result of height is not correct"
         assert list5 == [[0, 0], [1, 1], [2, 2]], "the result of array is not correct"
+        assert list6 == [["jack", "123"], ["alice", "34"], ["rose", "25344"]], \
+            "the result of multiple columns is not correct"
 
     def test_to_dict(self):
         spark = OrcaContext.get_spark_session()
@@ -849,6 +852,56 @@ class TestTable(TestCase):
         size1 = tbl1.size()
         size2 = tbl2.size()
         assert size1 + size2 == total_size
+
+    def test_sort(self):
+        file_path = os.path.join(self.resource_path, "friesian/feature/")
+        df = FeatureTable.read_csv(file_path+"data.csv", header=True)
+        df = df.sort("col1")
+        assert df.to_list("col1")[0] == 1
+        df = df.sort("col1", False)
+        assert df.to_list("col1")[0] == 4
+        df = df.sort(["col1", "col2"])
+        assert df.to_list(["col1", "col2"])[1][0] == 3
+        assert df.to_list(["col1", "col2"])[1][1] == 'y'
+        df = df.sort(["col1", "col2"], [True, False])
+        assert df.to_list(["col1", "col2"])[1][0] == 3
+        assert df.to_list(["col1", "col2"])[1][1] == 'z'
+
+    def test_iloc(self):
+        file_path = os.path.join(self.resource_path, "friesian/feature/")
+        df = FeatureTable.read_csv(file_path+"data.csv", header=True)
+        df = df.iloc("col1", 0, 5.0)
+        assert df.to_list("col1")[0] == 5.0
+        df = df.iloc("col2", 1, 'a')
+        assert df.to_list("col2")[1] == 'a'
+        df = df.iloc("col3", 2, "bbb")
+        assert df.to_list("col3")[2] == "bbb"
+        df = df.iloc("col1", [0, 2, 3], 6.0)
+        assert df.to_list("col1")[0] == 6.0
+        assert df.to_list("col1")[2] == 6.0
+        assert df.to_list("col1")[3] == 6.0
+
+    def test_append_list(self):
+        file_path = os.path.join(self.resource_path, "friesian/feature/")
+        df = FeatureTable.read_csv(file_path+"data.csv", header=True)
+        list = [(0, 1), (1, 2), (2, 3), (3, 4)]
+        df = df.append_list("col4", list)
+        assert df.select("col4").size() == 4
+        list = [(0, 1), (2, 2)]
+        df = df.append_list("col5", list)
+        assert df.dropna("col5").size() == 2
+
+    def test_shift(self):
+        file_path = os.path.join(self.resource_path, "friesian/feature/")
+        df = FeatureTable.read_csv(file_path+"data.csv", header=True)
+        df = df.shift("col1", "col4")
+        assert df.select("col4").size() == 4
+        assert df.to_list("col4")[0] is None
+        df = df.shift("col1", "col4", 2)
+        assert df.to_list("col4")[0] is None
+        assert df.to_list("col4")[1] is None
+        df = df.shift("col1", "col4", 1, -1)
+        assert df.to_list("col4")[0] == -1
 
 
 if __name__ == "__main__":
