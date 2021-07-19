@@ -335,20 +335,28 @@ class PytorchBaseModel(BaseModel):
         self.ort_session = onnxruntime.InferenceSession(os.path.join(dirname, "cache.onnx"))
         self.onnx_model_built = True
 
-    def predict_with_onnx(self, x, mc=False, dirname=None):
+    def predict_with_onnx(self, x, mc=False, dirname=None, batch_size=32):
         # reshape 1dim input
         x = self._reshape_input(x)
 
         x = PytorchBaseModel.to_torch(x).float()
         if not self.onnx_model_built:
             self._build_onnx(x[0:1], dirname=dirname)
+        
+        test_loader = DataLoader(TensorDataset(x),
+                                 batch_size=int(batch_size))
+        yhat_list = []
 
         def to_numpy(tensor):
             return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
-        ort_inputs = {self.ort_session.get_inputs()[0].name: to_numpy(x)}
-        ort_outs = self.ort_session.run(None, ort_inputs)
-        return ort_outs[0]
+        for x_test_batch in test_loader:
+            ort_inputs = {self.ort_session.get_inputs()[0].name: to_numpy(x_test_batch[0])}
+            ort_outs = self.ort_session.run(None, ort_inputs)
+            yhat_list.append(ort_outs[0])
+        yhat = np.concatenate(yhat_list, axis=0)
+
+        return yhat
 
     def _get_required_parameters(self):
         return {}
