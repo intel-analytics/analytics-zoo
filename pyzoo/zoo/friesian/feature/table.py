@@ -687,12 +687,13 @@ class FeatureTable(Table):
                         "have the same length with target_cols"
 
         # calculate global mean for each target column
-        target_mean_dict = target_mean
+        target_mean_dict = {}
         if target_mean is not None:
             assert isinstance(target_mean, dict), "target_mean should be a dict"
             for target_col in target_cols:
                 assert target_col in target_mean, "target column " + target_col + " should be " \
                         "in target_mean " + str(target_mean)
+                target_mean_dict[target_col]=target_mean[target_col]
         else:
             global_mean_list = [F.mean(F.col(target_col)).alias(target_col) \
                     for target_col in target_cols]
@@ -808,8 +809,15 @@ class FeatureTable(Table):
         result_df = self.df
         for target_code in targets:
             cat_col = target_code.cat_col
+            out_target_mean = target_code.out_target_mean
 
             join_df = target_code.df if is_train else target_code.all_df
+
+            # select target_cols to join
+            if target_cols is not None:
+                for out_col, target_mean in out_target_mean.items():
+                    if target_mean[0] not in target_cols:
+                        join_df = join_df.drop(out_col)
 
             if not is_train or target_code.kfold == 1:
                 result_df = result_df.join(join_df, cat_col, how="left")
@@ -825,17 +833,8 @@ class FeatureTable(Table):
                             how="left")
 
             # for new columns, fill na with mean
-            target_mean = target_code.out_target_mean
-            for target_col in target_code.df.columns:
-                if target_col in target_mean:
-                    target_col_mean = target_mean[target_col]
-                    if target_cols is not None:
-                        if target_col_mean[0] in target_cols:
-                            result_df = result_df.fillna(target_col_mean[1], target_col)
-                        else:
-                            result_df = result_df.drop(target_col)
-                    else:
-                        result_df = result_df.fillna(target_col_mean[1], target_col)
+            for out_col, target_mean in out_target_mean.items():
+                result_df = result_df.fillna(target_mean[1], out_col)
 
         if drop_cat:
             for target_code in targets:
@@ -953,16 +952,20 @@ class TargetCode(Table):
             self.df = self.df.withColumnRenamed(fold_col, fold_col)
 
         # (keys of out_target_mean) should include (output columns)
+        # let (keys of out_target_mean) = (output columns)
         assert isinstance(out_target_mean, dict), "out_target_mean should be dict"
-        for column in df.columns:
-            if (isinstance(cat_col, str) and column != cat_col) or \
-                    (isinstance(cat_col, list) and column not in cat_col):
-                if kfold == 1 or (kfold > 1 and column != fold_col):
-                    assert column in out_target_mean, column + " should be in out_target_mean"
-                    column_mean = out_target_mean[column][1]
-                    assert isinstance(column_mean, int) or isinstance(column_mean, float), \
-                            "mean in target_mean should be numeric but get {} of type {} in {}" \
-                            .format(column_mean, type(column_mean), out_target_mean)
+        output_columns=list(filter(lambda x: ((isinstance(cat_col, str) and x != cat_col) or
+                (isinstance(cat_col, list) and x not in cat_col)) and 
+                (kfold == 1 or (kfold > 1 and x != fold_col)), df.columns))
+        for out_col in out_target_mean:
+            if out_col not in output_columns:
+                out_target_mean.pop(out_col)
+        for column in output_columns:
+            assert column in out_target_mean, column + " should be in out_target_mean"
+            column_mean = out_target_mean[column][1]
+            assert isinstance(column_mean, int) or isinstance(column_mean, float), \
+                    "mean in target_mean should be numeric but get {} of type {} in {}" \
+                    .format(column_mean, type(column_mean), out_target_mean)
 
     def _clone(self, df):
         return TargetCode(df, self.cat_col, self.out_target_mean, self.kfold,
