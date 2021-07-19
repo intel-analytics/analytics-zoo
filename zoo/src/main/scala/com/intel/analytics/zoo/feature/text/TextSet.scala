@@ -594,6 +594,57 @@ object TextSet {
   }
 
   /**
+    * Used to generate a TextSet for ranking in the classification mode
+    * to join corpus1 and corpus2 using relation identifiers.
+    *
+    * Note: Make sure that the corpus has been transformed by [[SequenceShaper]] and [[WordIndexer]].
+    *
+    * @param relations RDD of [[Relation]].
+    * @param corpus1 DistributedTextSet that contains all [[Relation.id1]]. For each TextFeature
+    *                in corpus1, text must have been transformed to indexedTokens of the same length.
+    * @param corpus2 DistributedTextSet that contains all [[Relation.id2]]. For each TextFeature
+    *                in corpus2, text must have been transformed to indexedTokens of the same length.
+    * @return DistributedTextSet.
+    */
+  def fromRelations(relations: RDD[Relation],
+                    corpus1: TextSet,
+                    corpus2: TextSet): DistributedTextSet = {
+
+    def createClassificationTextFeature(qtf: TextFeature, atf: TextFeature, labelValue: Int) = {
+
+      val classificationIndices = qtf.getIndices ++ atf.getIndices
+
+      val feature = Tensor(classificationIndices, Array(classificationIndices.length))
+      val label = Tensor(Array(labelValue.toFloat), Array(1))
+      val sample = Sample(feature, label)
+
+      val textFeature = TextFeature(null, qtf.getURI + atf.getURI)
+      textFeature(TextFeature.label) = labelValue
+      textFeature(TextFeature.sample) = sample
+      textFeature
+    }
+
+    require(corpus1.isDistributed, "corpus1 must be a DistributedTextSet")
+    require(corpus2.isDistributed, "corpus2 must be a DistributedTextSet")
+
+    val joinedText1 = corpus1.toDistributed().rdd.keyBy(_.getURI)
+        .join(relations.keyBy(_.id1)).map(_._2)
+
+    val res = joinedText1.
+        keyBy(_._2.id2).
+        join(corpus2.toDistributed().rdd.keyBy(_.getURI)).
+        map { case (_, ((text1, rel), text2)) =>
+          createClassificationTextFeature(
+            text1,
+            text2,
+            rel.label
+          )
+        }
+
+    TextSet.rdd(res)
+  }
+
+  /**
    * Assign each word an index to form a map.
    *
    * @param words Array of words.
