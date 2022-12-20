@@ -188,7 +188,7 @@ class RayServiceFuncGenerator(object):
 
 
 class RayContext(object):
-    def __init__(self, sc, redis_port=None, password="123456", object_store_memory=None,
+    def __init__(self, sc, redis_port=None, password=None, object_store_memory=None,
                  verbose=False, env=None, extra_params=None):
         """
         The RayContext would init a ray cluster on top of the configuration of SparkContext.
