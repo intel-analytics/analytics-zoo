@@ -203,7 +203,7 @@ class RayServiceFuncGenerator(object):
 
 
 class RayContext(object):
-    def __init__(self, sc, redis_port=None, password="123456", object_store_memory=None,
+    def __init__(self, sc, redis_port=None, password=None, object_store_memory=None,
                  verbose=False, env=None, local_ray_node_num=2, waiting_time_sec=8,
                  extra_params=None):
         """
