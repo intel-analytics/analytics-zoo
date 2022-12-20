@@ -323,7 +323,7 @@ class RayServiceFuncGenerator(object):
 class RayContext(object):
     _active_ray_context = None
 
-    def __init__(self, sc, redis_port=None, password="123456", object_store_memory=None,
+    def __init__(self, sc, redis_port=None, password=None, object_store_memory=None,
                  verbose=False, env=None, extra_params=None, include_webui=True,
                  num_ray_nodes=None, ray_node_cpu_cores=None):
         """
@@ -341,7 +341,7 @@ class RayContext(object):
         :param sc: An instance of SparkContext.
         :param redis_port: The redis port for the ray head node. Default is None.
         The value would be randomly picked if not specified.
-        :param password: The password for redis. Default to be "123456" if not specified.
+        :param password: The password for redis. Default to be None if not specified.
         :param object_store_memory: The memory size for ray object_store in string.
         This can be specified in bytes(b), kilobytes(k), megabytes(m) or gigabytes(g).
         For example, "50b", "100k", "250m", "30g".
