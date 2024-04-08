@@ -33,7 +33,7 @@
         <scala-library-scope>compile</scala-library-scope>
         <spark-mllib-scope>compile</spark-mllib-scope>
         <scala.major.version>2.11</scala.major.version>
-        <akka.http.version>10.1.11</akka.http.version>
+        <akka.http.version>10.2.3</akka.http.version>
         <akka.actor.version>2.5.26</akka.actor.version>
         <guava.version>32.0.1-jre</guava.version>
         <scala.version>2.11.12</scala.version>
