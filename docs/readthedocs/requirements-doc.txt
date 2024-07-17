@@ -10,7 +10,7 @@ ray[tune]==1.2.0
 ray==1.2.0
 torch==1.7.1
 Pygments==2.3.1
-setuptools==41.0.1
+setuptools
 docutils==0.14
 mock==1.0.1
 pillow==5.4.1
