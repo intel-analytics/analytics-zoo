@@ -4,7 +4,7 @@ sphinx-click
 sphinx-jsonschema
 sphinxemoji
 click
-tensorflow==1.15.2
+tensorflow>=2.12.1
 bigdl==0.12.2
 ray[tune]==1.2.0
 ray==1.2.0
