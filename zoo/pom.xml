@@ -688,7 +688,7 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <version>3.15.8</version>
+            <version>3.25.5</version>
             <scope>${grpc.scope}</scope>
         </dependency>
         <dependency>
