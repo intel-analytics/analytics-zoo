@@ -1,5 +1,5 @@
 numpy
 six
 nltk
-keras==2.13.1
+keras
 h5py
